@@ -1,0 +1,68 @@
+{
+  "name": "model-router",
+  "version": "0.1.0",
+  "author": {
+    "name": "shiotomo"
+  },
+  "types": "./types/index.d.ts",
+  "description": "Classifies each prompt and routes the turn to the model that fits the task (haiku / sonnet / opus).",
+  "userConfig": {
+    "simpleModel": {
+      "type": "string",
+      "title": "Model for simple tasks",
+      "description": "質問・小さな修正・説明など軽いタスクに使うモデル",
+      "default": "haiku"
+    },
+    "standardModel": {
+      "type": "string",
+      "title": "Model for standard tasks",
+      "description": "通常の実装・デバッグに使うモデル",
+      "default": "sonnet"
+    },
+    "complexModel": {
+      "type": "string",
+      "title": "Model for complex tasks",
+      "description": "設計・大規模リファクタ・難しいデバッグに使うモデル",
+      "default": "opus"
+    },
+    "simpleEffort": {
+      "type": "string",
+      "title": "Effort for simple tasks",
+      "description": "簡単なタスクの effort",
+      "default": "low",
+      "options": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "standardEffort": {
+      "type": "string",
+      "title": "Effort for standard tasks",
+      "description": "通常のタスクの effort",
+      "default": "medium",
+      "options": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "complexEffort": {
+      "type": "string",
+      "title": "Effort for complex tasks",
+      "description": "複雑なタスクの effort",
+      "default": "high",
+      "options": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    }
+  }
+}
