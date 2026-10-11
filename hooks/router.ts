@@ -96,6 +96,10 @@ type Classifier = 'haiku' | Backend
 type Endpoints = Record<Backend, Endpoint>
 
 const BACKENDS: readonly Backend[] = ['laya', 'jev']
+// userConfig の真偽値は boolean でも文字列でも届きうる
+const flag = (value: unknown, fallback: boolean): boolean =>
+  typeof value === 'boolean' ? value : value === 'true' ? true : value === 'false' ? false : fallback
+
 const isBackend = (value: unknown): value is Backend => BACKENDS.includes(value as Backend)
 
 // turn.step はエイリアスを解決しないので、ここでフル ID に直してから渡す
@@ -254,8 +258,13 @@ export const register: Register = (on, options) => {
       model: String(options.jevModel ?? 'jev-latest'),
     },
   }
-  const classifier: Classifier = isBackend(options.classifier) ? options.classifier : 'haiku'
-  const decideBackend: Backend | 'off' = isBackend(options.decideBackend) ? options.decideBackend : 'off'
+  // モデルの切り替えと Jev / Laya の利用は、それぞれ独立に無効にできる
+  const routingEnabled = flag(options.routingEnabled, true)
+  const decisionEnabled = flag(options.decisionEnabled, true)
+  // Jev / Laya を無効にすると、分類は haiku、decide ツールは出さない
+  const classifier: Classifier = decisionEnabled && isBackend(options.classifier) ? options.classifier : 'haiku'
+  const decideBackend: Backend | 'off' = decisionEnabled && isBackend(options.decideBackend) ? options.decideBackend : 'off'
+  const showStatus: typeof show = (...args) => (routingEnabled ? show(...args) : args[0].ui.status(undefined))
 
   on('session.start', async ($, e, next) => {
     const saved = await $.store.get(MODE_KEY)
@@ -275,7 +284,7 @@ export const register: Register = (on, options) => {
       const hint = await setupHint($, backend, endpoints)
       if (hint !== undefined) $.ui.log(hint)
     }
-    show($, efforts, await read($, mode), null)
+    showStatus($, efforts, await read($, mode), null)
 
     return next(e)
   })
@@ -291,6 +300,8 @@ export const register: Register = (on, options) => {
         `last route: ${last === null ? '-' : `${last.model} (${last.tier})`}`,
         `models: simple=${models.simple}, standard=${models.standard}, complex=${models.complex}`,
         `effort: simple=${efforts.simple}, standard=${efforts.standard}, complex=${efforts.complex}`,
+        `model switching: ${routingEnabled ? 'on' : 'off'}`,
+        `Jev / Laya: ${decisionEnabled ? 'on' : 'off'}`,
         `classifier: ${classifier}`,
         `decide tool: ${decideBackend === 'off' ? 'off' : `${decideBackend} (${endpoints[decideBackend].url})`}`,
       ]
@@ -301,7 +312,7 @@ export const register: Register = (on, options) => {
 
     await update($, mode, () => arg)
     await $.store.set(MODE_KEY, arg)
-    show($, efforts, arg, null)
+    showStatus($, efforts, arg, null)
 
     return { text: `mode を ${arg} にしました。` }
   })
@@ -309,18 +320,18 @@ export const register: Register = (on, options) => {
   // 人が打ったプロンプト（端末の Enter、claude -p / SDK）だけを分類する。
   // 通知やプラグインからの投入は直前のルートのまま
   on('prompt.submit', async ($, e, next) => {
-    if (e.origin.kind !== 'composer' && e.origin.kind !== 'sdk') return next(e)
+    if (!routingEnabled || (e.origin.kind !== 'composer' && e.origin.kind !== 'sdk')) return next(e)
 
     const chosen = await choose($, models, classifier, endpoints, e.text)
     await update($, route, () => chosen)
-    show($, efforts, await read($, mode), chosen)
+    showStatus($, efforts, await read($, mode), chosen)
 
     return next(e)
   }).catch(($, e, next) => next(e))
 
   // メインループのリクエストだけモデルを差し替える。サブエージェントは各自の設定に任せる
   on('turn.step', async function* ($, e, next) {
-    if (e.agentId !== undefined || (await read($, mode)) === 'off') return yield* next(e)
+    if (!routingEnabled || e.agentId !== undefined || (await read($, mode)) === 'off') return yield* next(e)
 
     const chosen = await read($, route)
     if (chosen === null) return yield* next(e)

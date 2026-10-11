@@ -7,6 +7,18 @@
   "types": "./types/index.d.ts",
   "description": "Classifies each prompt and routes the turn to the model that fits the task (haiku / sonnet / opus), and hands bounded judgments to the Jev / Laya decision models.",
   "userConfig": {
+    "routingEnabled": {
+      "type": "boolean",
+      "title": "Enable model switching",
+      "description": "プロンプトごとのモデル切り替え。オフにすると常にセッションのモデルのまま（Jev / Laya の利用には影響しない）",
+      "default": true
+    },
+    "decisionEnabled": {
+      "type": "boolean",
+      "title": "Enable Jev / Laya",
+      "description": "Jev / Laya の利用（ティア分類と decide ツール）。オフにすると分類は haiku、decide ツールは出さない（モデル切り替えには影響しない）",
+      "default": true
+    },
     "simpleModel": {
       "type": "string",
       "title": "Model for simple tasks",

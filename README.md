@@ -141,6 +141,8 @@ LAYA_HOST=127.0.0.1 laya-serve    # 既定で :8000 に立つ
 | `standardEffort` | `high` | standard の effort（Sonnet 5.5 の推奨値） |
 | `complexEffort` | `medium` | complex の effort（Opus 5.5 の推奨値） |
 
+| `routingEnabled` | `true` | モデルの切り替えを有効にする。`false` ではモデルも effort も変えない（Jev / Laya には影響しない） |
+| `decisionEnabled` | `true` | Jev / Laya の利用（ティア分類と `decide` ツール）を有効にする。`false` では分類は haiku、`decide` は出さない（モデル切り替えには影響しない） |
 | `classifier` | `haiku` | ティア分類に使うモデル（`haiku` / `laya` / `jev`） |
 | `decideBackend` | `off` | `decide` ツールの送り先（`off` / `laya` / `jev`）。`off` ではツールを出さない |
 | `layaUrl` | `http://localhost:8000` | laya-serve の URL |
