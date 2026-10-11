@@ -1,5 +1,5 @@
 {
-  "name": "model-router",
+  "name": "shiotomo-mod",
   "owner": { "name": "shiotomo" },
-  "plugins": [{ "name": "model-router", "source": "./" }]
+  "plugins": [{ "name": "shiotomo-mod", "source": "./" }]
 }

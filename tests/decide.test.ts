@@ -27,7 +27,7 @@ function server(on: On, answer: (body: Record<string, unknown> | undefined) => u
   on('command.register', () => ({ value: undefined }) as never)
   on('tool.register', ($, e) => {
     registered.push(e.name)
-    return { value: { tool: `mcp__model-router__${e.name}` } } as never
+    return { value: { tool: `mcp__shiotomo-mod__${e.name}` } } as never
   })
   on('model.classify', () => ({ value: 'standard' }) as never)
   on('session.start', ($, e) => e)
@@ -47,7 +47,7 @@ const LAYA = { options: { decideBackend: 'laya' } }
 const JEV = { options: { decideBackend: 'jev', jevApiKey: 'sk-test' } }
 
 async function decide($: Engine, input: Record<string, unknown>) {
-  const called = await $.tool.call({ tool: 'mcp__model-router__decide', ...input } as never)
+  const called = await $.tool.call({ tool: 'mcp__shiotomo-mod__decide', ...input } as never)
   return called as { result?: string; deny?: string }
 }
 
