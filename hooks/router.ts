@@ -1,7 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Mode, Route, Weight } from '../types'
+import type { Backend, Mode, Route, Weight } from '../types'
+import { MAX_STATES, checkQuestions, trimSlash } from './systemone'
+import type { Decision, Endpoint, Questions } from './systemone'
 
 type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
@@ -15,9 +17,9 @@ const SWITCH_GAP = 2
 // モデルは変えず effort で重さを合わせる（会話途中の effort 変更ではキャッシュは失われない）
 const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 const DEFAULT_EFFORT: Record<Weight, Effort> = {
-  simple: 'low',
-  standard: 'medium',
-  complex: 'high',
+  simple: 'medium',
+  standard: 'high',
+  complex: 'medium',
 }
 
 const CLASSIFIER_HINT = `Classify the coding-assistant task below by how much reasoning it needs.
@@ -27,6 +29,58 @@ complex: architecture or system design, large refactors across many files, subtl
 
 Task:
 `
+
+// 分類を Jev / Laya に任せるときの質問。haiku の CLASSIFIER_HINT と同じ基準
+const TIER_QUESTIONS: Questions = {
+  tier: {
+    type: 'choice',
+    instructions: 'How much reasoning does this coding-assistant task need?',
+    criteria: {
+      simple: 'a factual question, explaining a snippet, a typo or one-line fix, renaming, formatting, running a known command',
+      standard: 'implementing a feature in a few files, writing tests, ordinary debugging, a focused code review',
+      complex:
+        'architecture or system design, large refactors across many files, subtle concurrency or performance bugs, security analysis, ambiguous open-ended planning',
+    },
+  },
+}
+
+const DECIDE_TOOL = 'mcp__model-router__decide'
+const DECIDE_DESCRIPTION = `Hands a bounded judgment to a System-1 decision model (Laya, run locally, or TypeSafe's hosted Jev) and returns typed answers with calibrated probabilities, in milliseconds and at a tiny fraction of your own cost.
+
+Use it instead of judging yourself when the answer is one of a fixed set: classification, rating on a scale, or yes/no over text. It pays off most over many items: labeling or triaging log lines, issues, test failures, review comments or commit messages; sentiment, urgency, language or topic; checking whether each of many snippets meets a criterion. Pass the same questions over up to ${MAX_STATES} items with \`states\`.
+Do not use it to generate text or code, for multi-step reasoning, or when the answer is not among the options you give. Check important or low-confidence answers yourself.
+
+state: the text or JSON the judgment is about (questions can point at a field with a backticked path such as \`order.charges\`).
+questions: an object keyed by ids you choose; the id is not sent to the model, so put the whole question in instructions.
+- choice: criteria maps each option to a description, e.g. {"bug": "a defect in our code", "flaky": "nondeterministic failure", "other": "anything else"}. Answer: choice, probabilities, confidence.
+- score: criteria is a list of 2-10 described levels, lowest first. Answer: score (the expected level index), probabilities, confidence.
+- noul: a yes/no proposition; criteria {"true": ..., "false": ...} is optional. Answer: noul, the probability of yes.`
+
+const DECIDE_SCHEMA = {
+  type: 'object',
+  properties: {
+    state: { description: 'The text or JSON object the judgment is about.' },
+    states: {
+      type: 'array',
+      maxItems: MAX_STATES,
+      description: 'Several states to ask the same questions about, in place of state. Answers come back in the same order.',
+    },
+    questions: {
+      type: 'object',
+      description: 'Questions keyed by an id of your choosing.',
+      additionalProperties: {
+        type: 'object',
+        properties: {
+          type: { enum: ['choice', 'score', 'noul'] },
+          instructions: { type: 'string', description: 'The whole question.' },
+          criteria: { description: 'choice: {option: description}; score: [level descriptions, lowest first]; noul: optional {true, false}.' },
+        },
+        required: ['type', 'instructions'],
+      },
+    },
+  },
+  required: ['questions'],
+}
 
 const mode = atom({ plugin: 'model-router', key: 'mode' } as const, 'auto')
 const route = atom({ plugin: 'model-router', key: 'route' } as const, null)
@@ -38,6 +92,11 @@ const isMode = (value: unknown): value is Mode =>
 
 type Models = Record<Weight, string>
 type Efforts = Record<Weight, Effort>
+type Classifier = 'haiku' | Backend
+type Endpoints = Record<Backend, Endpoint>
+
+const BACKENDS: readonly Backend[] = ['laya', 'jev']
+const isBackend = (value: unknown): value is Backend => BACKENDS.includes(value as Backend)
 
 // turn.step はエイリアスを解決しないので、ここでフル ID に直してから渡す
 const ALIASES: Record<string, string> = {
@@ -67,7 +126,88 @@ function show($: EngineInterface, efforts: Efforts, current: Mode, chosen: Route
 
 const gap = (a: Weight, b: Weight) => Math.abs(TIERS.indexOf(a) - TIERS.indexOf(b))
 
-async function choose($: EngineInterface, models: Models, text: string): Promise<Route | null> {
+async function decide(
+  $: EngineInterface,
+  endpoint: Endpoint,
+  state: unknown,
+  questions: Questions,
+): Promise<Decision> {
+  if (endpoint.backend === 'jev' && endpoint.apiKey === '') {
+    throw new Error('jev: jevApiKey が設定されていません（/config で設定してください）')
+  }
+
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (endpoint.apiKey !== '') headers.authorization = `Bearer ${endpoint.apiKey}`
+  // Laya の model はチェックポイント名なので、Jev のモデル名は送らない
+  const body = endpoint.backend === 'jev' ? { model: endpoint.model, state, questions } : { state, questions }
+
+  const url = `${trimSlash(endpoint.url)}/v1/systemone`
+  let response
+  try {
+    response = await $.http.fetch(url, { method: 'POST', headers, body: JSON.stringify(body) })
+  } catch (error) {
+    const hint = endpoint.backend === 'laya' ? '（laya-serve が起動しているか確かめてください）' : ''
+    throw new Error(`${endpoint.backend}: ${url} に接続できません${hint}: ${String(error)}`)
+  }
+  if (!response.ok) {
+    throw new Error(`${endpoint.backend}: HTTP ${response.status}: ${response.text.slice(0, 500)}`)
+  }
+
+  const parsed: unknown = JSON.parse(response.text)
+  const answers = (parsed as Decision | null)?.answers
+  if (typeof answers !== 'object' || answers === null) {
+    throw new Error(`${endpoint.backend}: answers のない応答です: ${response.text.slice(0, 200)}`)
+  }
+  return parsed as Decision
+}
+
+// 何か HTTP で答えが返れば動いているとみなす（接続できないときだけ fetch が reject する）
+async function isReachable($: EngineInterface, url: string): Promise<boolean> {
+  try {
+    await $.http.fetch(trimSlash(url))
+    return true
+  } catch {
+    return false
+  }
+}
+
+// 有効にした Jev / Laya がすぐ使えないとき、何をすればよいかを返す。使えるなら undefined
+async function setupHint($: EngineInterface, backend: Backend, endpoints: Endpoints): Promise<string | undefined> {
+  if (backend === 'jev') {
+    return endpoints.jev.apiKey === ''
+      ? 'model-router: Jev を使うには /config で jevApiKey（TypeSafe の API キー）を入力してください。'
+      : undefined
+  }
+  if (await isReachable($, endpoints.laya.url)) return undefined
+  return `model-router: Laya（${endpoints.laya.url}）に接続できません。pip install "laya[serve]" で入れて laya-serve を起動するか、/config で layaUrl を合わせてください。`
+}
+
+// Jev / Laya が使えないときは haiku に戻す
+async function classify(
+  $: EngineInterface,
+  classifier: Classifier,
+  endpoints: Endpoints,
+  text: string,
+): Promise<string | undefined> {
+  const task = text.slice(0, 4000)
+  if (classifier !== 'haiku') {
+    try {
+      const { answers } = await decide($, endpoints[classifier], { task }, TIER_QUESTIONS)
+      return String(answers.tier?.choice)
+    } catch (error) {
+      $.ui.log(`${classifier} での分類に失敗したので haiku で分類します: ${String(error)}`, { to: 'debug' })
+    }
+  }
+  return $.model.classify(CLASSIFIER_HINT + task, TIERS, { model: 'haiku' })
+}
+
+async function choose(
+  $: EngineInterface,
+  models: Models,
+  classifier: Classifier,
+  endpoints: Endpoints,
+  text: string,
+): Promise<Route | null> {
   const current = await read($, mode)
   if (current === 'off') return null
   if (current !== 'auto') {
@@ -76,9 +216,7 @@ async function choose($: EngineInterface, models: Models, text: string): Promise
   }
   if (text.trim().length < MIN_CLASSIFY_LENGTH) return read($, route)
 
-  const label = await $.model.classify(CLASSIFIER_HINT + text.slice(0, 4000), TIERS, {
-    model: 'haiku',
-  })
+  const label = await classify($, classifier, endpoints, text)
   const tier = TIERS.find(one => one === label) ?? 'standard'
 
   // 切り替えるのは、いまのモデルから大きく離れたときだけ。近いティアは同じモデルのまま effort で合わせる
@@ -102,6 +240,22 @@ export const register: Register = (on, options) => {
     standard: String(options.standardModel ?? 'sonnet'),
     complex: String(options.complexModel ?? 'opus'),
   }
+  const endpoints: Endpoints = {
+    laya: {
+      backend: 'laya',
+      url: String(options.layaUrl ?? 'http://localhost:8000'),
+      apiKey: String(options.layaApiKey ?? ''),
+      model: '',
+    },
+    jev: {
+      backend: 'jev',
+      url: String(options.jevUrl ?? 'https://api.typesafe.ai'),
+      apiKey: String(options.jevApiKey ?? ''),
+      model: String(options.jevModel ?? 'jev-latest'),
+    },
+  }
+  const classifier: Classifier = isBackend(options.classifier) ? options.classifier : 'haiku'
+  const decideBackend: Backend | 'off' = isBackend(options.decideBackend) ? options.decideBackend : 'off'
 
   on('session.start', async ($, e, next) => {
     const saved = await $.store.get(MODE_KEY)
@@ -112,6 +266,15 @@ export const register: Register = (on, options) => {
       description: 'モデルルーターの状態表示・切替 (auto | off | simple | standard | complex)',
       argumentHint: '[auto|off|simple|standard|complex]',
     })
+    if (decideBackend !== 'off') {
+      await $.tool.register({ name: 'decide', description: DECIDE_DESCRIPTION, inputSchema: DECIDE_SCHEMA, isDeferred: false })
+    }
+    // 有効にした（設定を変えると mod が読み込み直され、ここを通る）ときに、キーの入力や Laya の用意を促す
+    const enabled = BACKENDS.filter(one => one === classifier || one === decideBackend)
+    for (const backend of enabled) {
+      const hint = await setupHint($, backend, endpoints)
+      if (hint !== undefined) $.ui.log(hint)
+    }
     show($, efforts, await read($, mode), null)
 
     return next(e)
@@ -128,6 +291,8 @@ export const register: Register = (on, options) => {
         `last route: ${last === null ? '-' : `${last.model} (${last.tier})`}`,
         `models: simple=${models.simple}, standard=${models.standard}, complex=${models.complex}`,
         `effort: simple=${efforts.simple}, standard=${efforts.standard}, complex=${efforts.complex}`,
+        `classifier: ${classifier}`,
+        `decide tool: ${decideBackend === 'off' ? 'off' : `${decideBackend} (${endpoints[decideBackend].url})`}`,
       ]
       return { text: lines.join('\n') }
     }
@@ -146,7 +311,7 @@ export const register: Register = (on, options) => {
   on('prompt.submit', async ($, e, next) => {
     if (e.origin.kind !== 'composer' && e.origin.kind !== 'sdk') return next(e)
 
-    const chosen = await choose($, models, e.text)
+    const chosen = await choose($, models, classifier, endpoints, e.text)
     await update($, route, () => chosen)
     show($, efforts, await read($, mode), chosen)
 
@@ -165,4 +330,36 @@ export const register: Register = (on, options) => {
 
     return yield* next({ ...e, model, effort })
   })
+
+  // 判断を Jev / Laya に任せ、答えを JSON でモデルに返す。失敗はエラー結果としてモデルに伝える
+  on('tool.call', { tool: DECIDE_TOOL }, async ($, e) => {
+    const input = e as unknown as Record<string, unknown>
+    const questions = checkQuestions(input.questions)
+    if (typeof questions === 'string') return { deny: questions }
+
+    // 送り先は設定で有効にしたものだけ。モデルが Jev（外部）へ切り替えることはできない
+    const backend = decideBackend
+    if (backend === 'off') return { deny: 'decide ツールは無効になっています' }
+    const endpoint = endpoints[backend]
+
+    if (Array.isArray(input.states)) {
+      if (input.states.length === 0 || input.states.length > MAX_STATES) {
+        return { deny: `states は 1〜${MAX_STATES} 件で渡してください` }
+      }
+    } else if (input.state === undefined) {
+      return { deny: 'state か states を渡してください' }
+    }
+
+    try {
+      if (Array.isArray(input.states)) {
+        const decisions = await Promise.all(input.states.map(state => decide($, endpoint, state, questions)))
+        const results = decisions.map(one => one.answers)
+        return { result: JSON.stringify({ backend, model: decisions[0]?.model, results }) }
+      }
+      const { model, answers } = await decide($, endpoint, input.state, questions)
+      return { result: JSON.stringify({ backend, model, answers }) }
+    } catch (error) {
+      return { deny: error instanceof Error ? error.message : String(error) }
+    }
+  }).catch(() => ({ deny: 'decide に失敗しました' }))
 }
