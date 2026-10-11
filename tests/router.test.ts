@@ -13,7 +13,7 @@ function bottom(on: On, labels: string | string[]) {
   on('model.classify', () => ({ value: queue.length > 1 ? queue.shift() : queue[0] }) as never)
   on('ui.status', () => ({ value: undefined }) as never)
   on('command.register', () => ({ value: undefined }) as never)
-  on('tool.register', () => ({ value: { tool: 'mcp__model-router__decide' } }) as never)
+  on('tool.register', () => ({ value: { tool: 'mcp__shiotomo-mod__decide' } }) as never)
   on('session.start', ($, e) => e)
   on('prompt.submit', ($, e) => ({ text: e.text }))
   on('turn.step', async function* ($, e) {

@@ -1,4 +1,4 @@
-# model-router
+# shiotomo-mod
 
 Claude Code の mod。プロンプトごとにタスクの重さを分類し、そのターンを最適なモデルと effort で実行します。
 
@@ -17,24 +17,24 @@ Claude Code の mod。プロンプトごとにタスクの重さを分類し、�
 このリポジトリを GitHub に push したあと、Claude Code のプロンプトで次を入力します。`<owner>/<repo>` は push 先に読み替えてください。
 
 ```
-/plugin install model-router --marketplace <owner>/<repo>
+/plugin install shiotomo-mod --marketplace <owner>/<repo>
 ```
 
-マーケットプレイスの追加を聞かれたら `y`、続いてスコープ（個人で使うなら user）を選びます。完了すると `Installed model-router. Plugin is now active.` と出て、そのセッションからすぐ使えます。
+マーケットプレイスの追加を聞かれたら `y`、続いてスコープ（個人で使うなら user）を選びます。完了すると `Installed shiotomo-mod. Plugin is now active.` と出て、そのセッションからすぐ使えます。
 
 ### 2. ローカルのフォルダから入れる
 
 このリポジトリを clone した状態で、フォルダを指定して起動します。そのセッションだけ有効になります。
 
 ```sh
-git clone <このリポジトリの URL> model-router
-claude --plugin-dir ./model-router
+git clone <このリポジトリの URL> shiotomo-mod
+claude --plugin-dir ./shiotomo-mod
 ```
 
 毎回フラグを付けたくない場合は、環境変数 `CLAUDE_CODE_PLUGIN_DIRS` にフォルダの絶対パスを入れておくと、同じように読み込まれます。
 
 ```sh
-export CLAUDE_CODE_PLUGIN_DIRS=/path/to/model-router
+export CLAUDE_CODE_PLUGIN_DIRS=/path/to/shiotomo-mod
 ```
 
 ### 動作の確認
@@ -101,7 +101,7 @@ Jev と Laya は文章を生成するモデルではなく、state（文章や J
 
 ### 任せるタスク
 
-`decideBackend` を有効にすると、mod は `mcp__model-router__decide` ツールを登録します。Claude はツールの説明に従い、次のような判断を自分で考える代わりにこのツールへ回します。
+`decideBackend` を有効にすると、mod は `mcp__shiotomo-mod__decide` ツールを登録します。Claude はツールの説明に従い、次のような判断を自分で考える代わりにこのツールへ回します。
 
 - ログ行・issue・テストの失敗・レビューコメント・コミットメッセージの分類やトリアージ
 - 感情・緊急度・言語・トピックの判定
@@ -158,7 +158,7 @@ settings ファイルに書く場合は、`pluginConfigs` にプラグイン名�
 ```json
 {
   "pluginConfigs": {
-    "model-router": {
+    "shiotomo-mod": {
       "options": {
         "standardModel": "claude-sonnet-5-5",
         "complexEffort": "xhigh"
@@ -178,7 +178,7 @@ settings ファイルに書く場合は、`pluginConfigs` にプラグイン名�
 
 - `prompt.submit`: 自分で入力したプロンプトを `$.model.classify`（haiku）で 3 つのティアに分類します。短すぎるプロンプト（「続けて」など）は直前のルートを引き継ぎます。分類に失敗したときは standard として扱います。
 - `turn.step`: メイン会話のリクエストだけ、モデルと effort を差し替えます。サブエージェントには触れません。
-- `tool.call`（`mcp__model-router__decide`）: 質問を確かめてから Jev / Laya の `/v1/systemone` に送り、答えを JSON でモデルに返します。接続できないときやキーがないときは、理由をエラー結果として返します。
+- `tool.call`（`mcp__shiotomo-mod__decide`）: 質問を確かめてから Jev / Laya の `/v1/systemone` に送り、答えを JSON でモデルに返します。接続できないときやキーがないときは、理由をエラー結果として返します。
 - `session.start`: Jev / Laya を有効にしていてすぐ使えないとき、キーの入力や laya-serve の用意を促す案内を出します。
 - **モデルは粘ります。** 自動では、いま使っているモデルとの差が「簡単↔重い」の 2 段階以上になったときだけモデルを切り替えます。
 - **effort は毎回ティアに合わせます。** 会話途中のモデル切り替えはプロンプトキャッシュを作り直しますが、effort だけの変更ではキャッシュは失われません。そのため、近いティアへの変化はモデルを変えず effort で調整します。

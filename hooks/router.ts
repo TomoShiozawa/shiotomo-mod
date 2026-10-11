@@ -44,7 +44,7 @@ const TIER_QUESTIONS: Questions = {
   },
 }
 
-const DECIDE_TOOL = 'mcp__model-router__decide'
+const DECIDE_TOOL = 'mcp__shiotomo-mod__decide'
 const DECIDE_DESCRIPTION = `Hands a bounded judgment to a System-1 decision model (Laya, run locally, or TypeSafe's hosted Jev) and returns typed answers with calibrated probabilities, in milliseconds and at a tiny fraction of your own cost.
 
 Use it instead of judging yourself when the answer is one of a fixed set: classification, rating on a scale, or yes/no over text. It pays off most over many items: labeling or triaging log lines, issues, test failures, review comments or commit messages; sentiment, urgency, language or topic; checking whether each of many snippets meets a criterion. Pass the same questions over up to ${MAX_STATES} items with \`states\`.
@@ -82,10 +82,10 @@ const DECIDE_SCHEMA = {
   required: ['questions'],
 }
 
-const mode = atom({ plugin: 'model-router', key: 'mode' } as const, 'auto')
-const route = atom({ plugin: 'model-router', key: 'route' } as const, null)
+const mode = atom({ plugin: 'shiotomo-mod', key: 'mode' } as const, 'auto')
+const route = atom({ plugin: 'shiotomo-mod', key: 'route' } as const, null)
 // いま会話で使っているモデルが、どのティアのものか
-const modelTier = atom({ plugin: 'model-router', key: 'modelTier' } as const, null as Weight | null)
+const modelTier = atom({ plugin: 'shiotomo-mod', key: 'modelTier' } as const, null as Weight | null)
 
 const isMode = (value: unknown): value is Mode =>
   value === 'auto' || value === 'off' || TIERS.includes(value as Weight)
@@ -179,11 +179,11 @@ async function isReachable($: EngineInterface, url: string): Promise<boolean> {
 async function setupHint($: EngineInterface, backend: Backend, endpoints: Endpoints): Promise<string | undefined> {
   if (backend === 'jev') {
     return endpoints.jev.apiKey === ''
-      ? 'model-router: Jev を使うには /config で jevApiKey（TypeSafe の API キー）を入力してください。'
+      ? 'shiotomo-mod: Jev を使うには /config で jevApiKey（TypeSafe の API キー）を入力してください。'
       : undefined
   }
   if (await isReachable($, endpoints.laya.url)) return undefined
-  return `model-router: Laya（${endpoints.laya.url}）に接続できません。pip install "laya[serve]" で入れて laya-serve を起動するか、/config で layaUrl を合わせてください。`
+  return `shiotomo-mod: Laya（${endpoints.laya.url}）に接続できません。pip install "laya[serve]" で入れて laya-serve を起動するか、/config で layaUrl を合わせてください。`
 }
 
 // Jev / Laya が使えないときは haiku に戻す

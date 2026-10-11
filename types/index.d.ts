@@ -10,6 +10,6 @@ export type Backend = 'laya' | 'jev'
 
 declare module 'claude-code' {
   interface PluginState {
-    'model-router': { mode: Mode; route: Route | null; modelTier: Weight | null }
+    'shiotomo-mod': { mode: Mode; route: Route | null; modelTier: Weight | null }
   }
 }
