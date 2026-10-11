@@ -1,11 +1,11 @@
 {
   "name": "model-router",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "shiotomo"
   },
   "types": "./types/index.d.ts",
-  "description": "Classifies each prompt and routes the turn to the model that fits the task (haiku / sonnet / opus).",
+  "description": "Classifies each prompt and routes the turn to the model that fits the task (haiku / sonnet / opus), and hands bounded judgments to the Jev / Laya decision models.",
   "userConfig": {
     "simpleModel": {
       "type": "string",
@@ -28,8 +28,8 @@
     "simpleEffort": {
       "type": "string",
       "title": "Effort for simple tasks",
-      "description": "簡単なタスクの effort",
-      "default": "low",
+      "description": "簡単なタスクの effort（Haiku 5.5 の推奨値）",
+      "default": "medium",
       "options": [
         "low",
         "medium",
@@ -41,8 +41,8 @@
     "standardEffort": {
       "type": "string",
       "title": "Effort for standard tasks",
-      "description": "通常のタスクの effort",
-      "default": "medium",
+      "description": "通常のタスクの effort（Sonnet 5.5 の推奨値）",
+      "default": "high",
       "options": [
         "low",
         "medium",
@@ -54,8 +54,8 @@
     "complexEffort": {
       "type": "string",
       "title": "Effort for complex tasks",
-      "description": "複雑なタスクの effort",
-      "default": "high",
+      "description": "複雑なタスクの effort（Opus 5.5 の推奨値）",
+      "default": "medium",
       "options": [
         "low",
         "medium",
@@ -63,6 +63,60 @@
         "xhigh",
         "max"
       ]
+    },
+    "classifier": {
+      "type": "string",
+      "title": "Classifier for routing",
+      "description": "プロンプトのティア分類に使うモデル。laya / jev は失敗したとき haiku に戻す",
+      "default": "haiku",
+      "options": [
+        "haiku",
+        "laya",
+        "jev"
+      ]
+    },
+    "decideBackend": {
+      "type": "string",
+      "title": "Backend of the decide tool",
+      "description": "Claude が分類・採点・yes/no の判断を任せる decide ツールの送り先。off（既定）ではツールを出さない",
+      "default": "off",
+      "options": [
+        "laya",
+        "jev",
+        "off"
+      ]
+    },
+    "layaUrl": {
+      "type": "string",
+      "title": "Laya server URL",
+      "description": "laya-serve の URL",
+      "default": "http://localhost:8000"
+    },
+    "layaApiKey": {
+      "type": "string",
+      "title": "Laya API key",
+      "description": "laya-serve を LAYA_API_KEY 付きで動かしているときのキー",
+      "default": "",
+      "sensitive": true
+    },
+    "jevUrl": {
+      "type": "string",
+      "title": "Jev API URL",
+      "description": "Jev の API の URL",
+      "default": "https://api.typesafe.ai"
+    },
+    "jevModel": {
+      "type": "string",
+      "title": "Jev model",
+      "description": "jev-latest / jev-preview / jev-1.13.0 など",
+      "default": "jev-latest"
+    },
+    "jevApiKey": {
+      "type": "string",
+      "title": "Jev API key",
+      "description": "TypeSafe の API キー",
+      "default": "",
+      "sensitive": true
     }
   }
 }

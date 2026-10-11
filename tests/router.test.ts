@@ -13,6 +13,7 @@ function bottom(on: On, labels: string | string[]) {
   on('model.classify', () => ({ value: queue.length > 1 ? queue.shift() : queue[0] }) as never)
   on('ui.status', () => ({ value: undefined }) as never)
   on('command.register', () => ({ value: undefined }) as never)
+  on('tool.register', () => ({ value: { tool: 'mcp__model-router__decide' } }) as never)
   on('session.start', ($, e) => e)
   on('prompt.submit', ($, e) => ({ text: e.text }))
   on('turn.step', async function* ($, e) {
@@ -67,7 +68,7 @@ test('タスクの重さに応じて effort を変える（モデルは変えな
   await submit($, 'このモジュールにテストを書いて')
   await step($)
   expect(sent).toEqual(['claude-sonnet-5-5'])
-  expect(sent.efforts).toEqual(['medium'])
+  expect(sent.efforts).toEqual(['high'])
 })
 
 test('近いティアへの変化ではモデルを切り替えない（ヒステリシス）', async ($, on) => {
@@ -79,17 +80,17 @@ test('近いティアへの変化ではモデルを切り替えない（ヒス�
   await submit($, 'このモジュールにテストを書いて')
   await step($)
   expect(sent).toEqual(['claude-opus-5-5', 'claude-opus-5-5', 'claude-opus-5-5'])
-  expect(sent.efforts).toEqual(['high', 'medium', 'medium'])
+  expect(sent.efforts).toEqual(['medium', 'high', 'high'])
 })
 
-test('大きく離れたティアへの変化ではモデルを切り替える', async ($, on) => {
+test('大きく離れたティアへの変化ではモデルを切り替える', { options: { simpleEffort: 'low' } }, async ($, on) => {
   const sent = bottom(on, ['complex', 'simple'])
   await submit($, 'アーキテクチャを再設計して、移行計画も立てて')
   await step($)
   await submit($, 'この関数名のタイポを直して')
   await step($)
   expect(sent).toEqual(['claude-opus-5-5', 'claude-haiku-5-5'])
-  expect(sent.efforts).toEqual(['high', 'low'])
+  expect(sent.efforts).toEqual(['medium', 'low'])
 })
 
 test('固定モードは切り替えを待たずに即座にそのモデルを使う', async ($, on) => {
@@ -126,7 +127,7 @@ test('エイリアスはフル ID にし、Haiku 5.5 にはティアの effort �
   await submit($, 'この関数名のタイポを直して')
   await step($)
   expect(sent).toEqual(['claude-haiku-5-5'])
-  expect(sent.efforts).toEqual(['low'])
+  expect(sent.efforts).toEqual(['medium'])
 })
 
 test('Bedrock の接頭辞を引き継ぐ', async ($, on) => {
@@ -155,5 +156,5 @@ test('不正な effort は既定に戻す', { options: { simpleEffort: 'ultra' }
   const sent = bottom(on, 'simple')
   await submit($, 'この関数名のタイポを直して')
   await step($)
-  expect(sent.efforts).toEqual(['low'])
+  expect(sent.efforts).toEqual(['medium'])
 })
