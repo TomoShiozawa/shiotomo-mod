@@ -121,8 +121,8 @@ function resolveModel(target: string, current: string): string {
   return prefix !== '' && id.startsWith('claude-') ? prefix + id : id
 }
 
-function show($: EngineInterface, efforts: Efforts, current: Mode, chosen: Route | null) {
-  if (current === 'off') return $.ui.status(undefined)
+function show($: EngineInterface, routingEnabled: boolean, efforts: Efforts, current: Mode, chosen: Route | null) {
+  if (!routingEnabled || current === 'off') return $.ui.status(undefined)
   if (chosen === null) return $.ui.status(`router: ${current}`)
   const how = chosen.isForced ? 'fixed' : 'auto'
   $.ui.status(`router: ${chosen.model} (${chosen.tier}, ${how}, effort ${efforts[chosen.tier]})`)
@@ -264,7 +264,6 @@ export const register: Register = (on, options) => {
   // Jev / Laya を無効にすると、分類は haiku、decide ツールは出さない
   const classifier: Classifier = decisionEnabled && isBackend(options.classifier) ? options.classifier : 'haiku'
   const decideBackend: Backend | 'off' = decisionEnabled && isBackend(options.decideBackend) ? options.decideBackend : 'off'
-  const showStatus: typeof show = (...args) => (routingEnabled ? show(...args) : args[0].ui.status(undefined))
 
   on('session.start', async ($, e, next) => {
     const saved = await $.store.get(MODE_KEY)
@@ -284,7 +283,7 @@ export const register: Register = (on, options) => {
       const hint = await setupHint($, backend, endpoints)
       if (hint !== undefined) $.ui.log(hint)
     }
-    showStatus($, efforts, await read($, mode), null)
+    show($, routingEnabled, efforts, await read($, mode), null)
 
     return next(e)
   })
@@ -312,7 +311,7 @@ export const register: Register = (on, options) => {
 
     await update($, mode, () => arg)
     await $.store.set(MODE_KEY, arg)
-    showStatus($, efforts, arg, null)
+    show($, routingEnabled, efforts, arg, null)
 
     return { text: `mode を ${arg} にしました。` }
   })
@@ -324,7 +323,7 @@ export const register: Register = (on, options) => {
 
     const chosen = await choose($, models, classifier, endpoints, e.text)
     await update($, route, () => chosen)
-    showStatus($, efforts, await read($, mode), chosen)
+    show($, routingEnabled, efforts, await read($, mode), chosen)
 
     return next(e)
   }).catch(($, e, next) => next(e))
