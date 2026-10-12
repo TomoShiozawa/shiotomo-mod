@@ -70,6 +70,7 @@ router: claude-sonnet-5-5 (standard, auto, effort medium)
 | `/router simple` | simple のモデルと effort に固定する |
 | `/router standard` | standard のモデルと effort に固定する |
 | `/router complex` | complex のモデルと effort に固定する |
+| `/decide ...` | Jev / Laya に判断を直接任せる（[`/decide` で自分で任せる](#decide-で自分で任せる)） |
 
 モードは保存され、次のセッションにも引き継がれます。
 
@@ -110,6 +111,23 @@ Jev と Laya は文章を生成するモデルではなく、state（文章や J
 - 多数のコード片が基準を満たすかどうかのチェック（`states` で最大 64 件をまとめて渡せます）
 
 文章やコードの生成、手順を踏む推論、選択肢にない答えが要る判断には使いません。重要な答えや確信度の低い答えは Claude が自分で確かめます。送り先は `decideBackend` で選んだもの 1 つだけで、Claude がツール呼び出しで変えることはできません。
+
+### `/decide` で自分で任せる
+
+`/decide` を使うと、Claude を介さずに自分で判断を投げられます。送り先は `decideBackend` で、`off` のときは `classifier` に選んだ `laya` / `jev` を使います。どちらも使えないときは、送らずに設定の案内を返します。
+
+| 書き方 | 内容 |
+| --- | --- |
+| `/decide yesno <命題> :: <テキスト>` | 命題が正しい確率を返す |
+| `/decide choice <a,b,c> <質問> :: <テキスト>` | 選択肢のどれかと各確率を返す |
+| `/decide score <2〜10> <質問> :: <テキスト>` | 段階数ぶんの尺度での期待値を返す |
+| `/decide {"state": ..., "questions": {...}}` | `decide` ツールの入力をそのまま渡す（`states` で複数件も可） |
+
+```
+/decide choice bug,flaky,other 失敗の種類は？ :: test timed out once, passed on retry
+```
+
+`choice` の選択肢は名前がそのまま説明になります。説明を付けたい質問や複数の質問は JSON で渡してください。
 
 ### Laya を使う
 
@@ -180,6 +198,7 @@ settings ファイルに書く場合は、`pluginConfigs` にプラグイン名�
 - `prompt.submit`: 自分で入力したプロンプトを、`classifier` の設定に従って haiku（`$.model.classify`）または Jev / Laya で 3 つのティアに分類します。短すぎるプロンプト（「続けて」など）は直前のルートを引き継ぎます。分類に失敗したときは standard として扱います。
 - `turn.step`: メイン会話のリクエストだけ、モデルと effort を差し替えます。サブエージェントには触れません。
 - `tool.call`（`mcp__shiotomo-mod__decide`）: 質問を確かめてから Jev / Laya の `/v1/systemone` に送り、答えを JSON でモデルに返します。接続できないときやキーがないときは、理由をエラー結果として返します。
+- `command.run`（`decide`）: `/decide` の引数を `decide` ツールと同じ入力に直し、同じ検証と送信で答えを表示します。
 - `session.start`: Jev / Laya を有効にしていてすぐ使えないとき、キーの入力や laya-serve の用意を促す案内を出します。
 - **モデルは粘ります。** 自動では、いま使っているモデルとの差が「簡単↔重い」の 2 段階以上になったときだけモデルを切り替えます。
 - **effort は毎回ティアに合わせます。** 会話途中のモデル切り替えはプロンプトキャッシュを作り直しますが、effort だけの変更ではキャッシュは失われません。そのため、近いティアへの変化はモデルを変えず effort で調整します。
