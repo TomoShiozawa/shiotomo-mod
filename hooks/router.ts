@@ -137,7 +137,7 @@ async function decide(
   questions: Questions,
 ): Promise<Decision> {
   if (endpoint.backend === 'jev' && endpoint.apiKey === '') {
-    throw new Error('jev: jevApiKey が設定されていません（/config で設定してください）')
+    throw new Error('jev: jevApiKey が設定されていません（/plugin configure shiotomo-mod で設定してください）')
   }
 
   const headers: Record<string, string> = { 'content-type': 'application/json' }
@@ -179,7 +179,7 @@ async function isReachable($: EngineInterface, url: string): Promise<boolean> {
 async function setupHint($: EngineInterface, backend: Backend, endpoints: Endpoints): Promise<string | undefined> {
   if (backend === 'jev') {
     return endpoints.jev.apiKey === ''
-      ? 'shiotomo-mod: Jev を使うには /config で jevApiKey（TypeSafe の API キー）を入力してください。'
+      ? 'shiotomo-mod: Jev を使うには /plugin configure shiotomo-mod で jevApiKey（TypeSafe の API キー）を入力してください。'
       : undefined
   }
   if (await isReachable($, endpoints.laya.url)) return undefined
