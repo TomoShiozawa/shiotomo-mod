@@ -98,7 +98,7 @@ Jev と Laya は文章を生成するモデルではなく、state（文章や J
 
 有効にすると mod が読み込み直され、すぐに使えない場合は transcript に案内が出ます。
 
-- Jev を選んで `jevApiKey` が空のとき: TypeSafe の API キーの入力を促します。
+- Jev を選んで `jevApiKey` が空のとき: TypeSafe の API キーの入力を促します。キーは機密項目なので `/config` には出ず、`/plugin configure shiotomo-mod` で入力します。
 - Laya を選んで `layaUrl` に接続できないとき: laya-serve の用意を促します。
 
 ### 任せるタスク
@@ -124,7 +124,7 @@ LAYA_HOST=127.0.0.1 laya-serve    # 既定で :8000 に立つ
 
 ### Jev を使う
 
-`decideBackend`（または `classifier`）を `jev` にし、TypeSafe の API キーを `jevApiKey` に入力します。Jev に送ると、state の内容は TypeSafe のサーバに送られます。コードや社外秘の文章を外に出したくない場合は Laya を使ってください。
+`decideBackend`（または `classifier`）を `jev` にし、TypeSafe の API キーを `jevApiKey` に入力します。キーは `/config` ではなく、`/plugin configure shiotomo-mod` で入力します。Jev に送ると、state の内容は TypeSafe のサーバに送られます。コードや社外秘の文章を外に出したくない場合は Laya を使ってください。
 
 ### ティア分類にも使う
 
@@ -132,7 +132,7 @@ LAYA_HOST=127.0.0.1 laya-serve    # 既定で :8000 に立つ
 
 ## 設定
 
-設定メニュー（`/config`）に、プラグインの項目として次が並びます。値を変えると mod が再読み込みされ、次のリクエストから反映されます。
+設定メニュー（`/config`）に、プラグインの項目として次が並びます（機密項目の `layaApiKey` と `jevApiKey` を除く）。値を変えると mod が再読み込みされ、次のリクエストから反映されます。
 
 | 項目 | 既定 | 内容 |
 | --- | --- | --- |
@@ -152,7 +152,7 @@ LAYA_HOST=127.0.0.1 laya-serve    # 既定で :8000 に立つ
 | `jevModel` | `jev-latest` | Jev のモデル（`jev-preview` や `jev-1.13.0` など） |
 | `jevApiKey` | なし | TypeSafe の API キー |
 
-effort は `low` / `medium` / `high` / `xhigh` / `max` から選びます。`layaApiKey` と `jevApiKey` は機密の項目として、settings ファイルではなく安全な保存先に置かれます。
+effort は `low` / `medium` / `high` / `xhigh` / `max` から選びます。`layaApiKey` と `jevApiKey` は機密の項目として、settings ファイルではなく安全な保存先に置かれます。機密項目は `/config` の行には出ないので、`/plugin configure shiotomo-mod`（ターミナルからは `claude plugin configure shiotomo-mod@shiotomo-mod --values-stdin`）で入力します。
 
 settings ファイルに書く場合は、`pluginConfigs` にプラグイン名で指定します。
 
