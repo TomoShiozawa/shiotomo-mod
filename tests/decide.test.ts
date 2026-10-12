@@ -141,6 +141,64 @@ test('Laya に接続できなければエラーを返す', LAYA, async ($, on) =
   expect(called.deny).toContain('laya-serve')
 })
 
+async function slash($: Engine, args: string) {
+  const shown = await $.command.run({ command: 'decide', args, origin: { kind: 'composer' } } as never)
+  return JSON.stringify(shown)
+}
+
+test('/decide yesno で noul の質問を Laya に送る', LAYA, async ($, on) => {
+  const sent = server(on, () => ({ answers: { answer: { type: 'noul', noul: 0.9 } } }))
+  const shown = await slash($, 'yesno これは不安定なテストか :: retry で通った')
+  expect(sent[0]?.body).toEqual({
+    state: 'retry で通った',
+    questions: { answer: { type: 'noul', instructions: 'これは不安定なテストか' } },
+  })
+  expect(shown).toContain('laya')
+  expect(shown).toContain('0.9')
+})
+
+test('/decide choice は選択肢を criteria にする', LAYA, async ($, on) => {
+  const sent = server(on)
+  await slash($, 'choice bug,flaky,other 失敗の種類は？ :: timed out')
+  expect(sent[0]?.body?.questions).toEqual({
+    answer: { type: 'choice', instructions: '失敗の種類は？', criteria: { bug: 'bug', flaky: 'flaky', other: 'other' } },
+  })
+})
+
+test('/decide score は段階数から尺度を作る', LAYA, async ($, on) => {
+  const sent = server(on)
+  await slash($, 'score 3 緊急度は？ :: 本番が落ちている')
+  const question = (sent[0]?.body?.questions as Record<string, { criteria: string[] }>).answer
+  expect(question?.criteria).toEqual(['1 (lowest)', '2', '3 (highest)'])
+})
+
+test('/decide は JSON の入力もそのまま受け付ける', LAYA, async ($, on) => {
+  const sent = server(on)
+  await slash($, JSON.stringify({ states: ['a', 'b'], questions: QUESTIONS }))
+  expect(sent.length).toEqual(2)
+})
+
+test('/decide は引数が読めなければ送らずに使い方を返す', LAYA, async ($, on) => {
+  const sent = server(on)
+  expect(await slash($, '')).toContain('使い方')
+  expect(await slash($, 'yesno 質問だけ')).toContain('::')
+  expect(await slash($, 'choice a 質問 :: x')).toContain('2 つ以上')
+  expect(await slash($, 'score 11 質問 :: x')).toContain('2〜10')
+  expect(sent).toEqual([])
+})
+
+test('/decide は decide ツールが off でも classifier の送り先を使う', { options: { classifier: 'laya' } }, async ($, on) => {
+  const sent = server(on)
+  await slash($, 'yesno 正しいか :: x')
+  expect(sent.map(one => one.url)).toEqual(['http://localhost:8000/v1/systemone'])
+})
+
+test('/decide は Jev / Laya がどちらも無効なら送らずに案内する', async ($, on) => {
+  const sent = server(on)
+  expect(await slash($, 'yesno 正しいか :: x')).toContain('decideBackend')
+  expect(sent).toEqual([])
+})
+
 test('classifier が laya ならティアの分類を Laya に任せる', { options: { classifier: 'laya' } }, async ($, on) => {
   const sent = server(on, () => ({ answers: { tier: { type: 'choice', choice: 'complex' } } }))
   await $.prompt.submit({ text: 'アーキテクチャを再設計して、移行計画も立てて', wait: false, origin: { kind: 'composer' } })

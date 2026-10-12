@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Backend, Mode, Route, Weight } from '../types'
-import { MAX_STATES, checkQuestions, trimSlash } from './systemone'
+import { MAX_STATES, checkQuestions, parseDecideArgs, trimSlash } from './systemone'
 import type { Decision, Endpoint, Questions } from './systemone'
 
 type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
@@ -165,6 +165,44 @@ async function decide(
   return parsed as Decision
 }
 
+type DecideOutcome =
+  | { payload: { backend: Backend; model: string | undefined; answers?: Decision['answers']; results?: Decision['answers'][] } }
+  | { deny: string }
+
+// decide ツールと /decide に共通の本体。入力 {state | states, questions} を確かめて backend に送る
+async function runDecide(
+  $: EngineInterface,
+  backend: Backend | 'off',
+  endpoints: Endpoints,
+  input: Record<string, unknown>,
+): Promise<DecideOutcome> {
+  const questions = checkQuestions(input.questions)
+  if (typeof questions === 'string') return { deny: questions }
+
+  if (backend === 'off') {
+    return { deny: 'Jev / Laya が無効です（/config で decideBackend か classifier を laya / jev にし、decisionEnabled を有効にしてください）' }
+  }
+  const endpoint = endpoints[backend]
+
+  const states = input.states
+  if (Array.isArray(states)) {
+    if (states.length === 0 || states.length > MAX_STATES) return { deny: `states は 1〜${MAX_STATES} 件で渡してください` }
+  } else if (input.state === undefined) {
+    return { deny: 'state か states を渡してください' }
+  }
+
+  try {
+    if (Array.isArray(states)) {
+      const decisions = await Promise.all(states.map(state => decide($, endpoint, state, questions)))
+      return { payload: { backend, model: decisions[0]?.model, results: decisions.map(one => one.answers) } }
+    }
+    const { model, answers } = await decide($, endpoint, input.state, questions)
+    return { payload: { backend, model, answers } }
+  } catch (error) {
+    return { deny: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 // 何か HTTP で答えが返れば動いているとみなす（接続できないときだけ fetch が reject する）
 async function isReachable($: EngineInterface, url: string): Promise<boolean> {
   try {
@@ -274,6 +312,11 @@ export const register: Register = (on, options) => {
       description: 'モデルルーターの状態表示・切替 (auto | off | simple | standard | complex)',
       argumentHint: '[auto|off|simple|standard|complex]',
     })
+    await $.command.register({
+      name: 'decide',
+      description: 'Jev / Laya に分類・採点・yes/no の判断を任せる (yesno | choice | score | JSON)',
+      argumentHint: '<yesno|choice|score> ... :: <text>',
+    })
     if (decideBackend !== 'off') {
       await $.tool.register({ name: 'decide', description: DECIDE_DESCRIPTION, inputSchema: DECIDE_SCHEMA, isDeferred: false })
     }
@@ -341,35 +384,24 @@ export const register: Register = (on, options) => {
     return yield* next({ ...e, model, effort })
   })
 
-  // 判断を Jev / Laya に任せ、答えを JSON でモデルに返す。失敗はエラー結果としてモデルに伝える
+  // 人が /decide で直接判断を投げる。入力の検証と送信は decide ツールと同じ。
+  // 自分で呼ぶので、ツールを出していなくても classifier に選んだ送り先があればそれを使う
+  on('command.run', { command: 'decide' }, async ($, e) => {
+    const input = parseDecideArgs(e.args)
+    if (typeof input === 'string') return { text: input }
+
+    const backend = decideBackend !== 'off' ? decideBackend : classifier === 'haiku' ? 'off' : classifier
+    const outcome = await runDecide($, backend, endpoints, input)
+    if ('deny' in outcome) return { text: `decide: ${outcome.deny}` }
+
+    const { backend: used, model, ...rest } = outcome.payload
+    return { text: `${used}${model === undefined ? '' : ` (${model})`}\n${JSON.stringify(rest, null, 2)}` }
+  })
+
+  // 判断を Jev / Laya に任せ、答えを JSON でモデルに返す。失敗はエラー結果としてモデルに伝える。
+  // 送り先は設定で有効にしたものだけ。モデルが Jev（外部）へ切り替えることはできない
   on('tool.call', { tool: DECIDE_TOOL }, async ($, e) => {
-    const input = e as unknown as Record<string, unknown>
-    const questions = checkQuestions(input.questions)
-    if (typeof questions === 'string') return { deny: questions }
-
-    // 送り先は設定で有効にしたものだけ。モデルが Jev（外部）へ切り替えることはできない
-    const backend = decideBackend
-    if (backend === 'off') return { deny: 'decide ツールは無効になっています' }
-    const endpoint = endpoints[backend]
-
-    if (Array.isArray(input.states)) {
-      if (input.states.length === 0 || input.states.length > MAX_STATES) {
-        return { deny: `states は 1〜${MAX_STATES} 件で渡してください` }
-      }
-    } else if (input.state === undefined) {
-      return { deny: 'state か states を渡してください' }
-    }
-
-    try {
-      if (Array.isArray(input.states)) {
-        const decisions = await Promise.all(input.states.map(state => decide($, endpoint, state, questions)))
-        const results = decisions.map(one => one.answers)
-        return { result: JSON.stringify({ backend, model: decisions[0]?.model, results }) }
-      }
-      const { model, answers } = await decide($, endpoint, input.state, questions)
-      return { result: JSON.stringify({ backend, model, answers }) }
-    } catch (error) {
-      return { deny: error instanceof Error ? error.message : String(error) }
-    }
+    const outcome = await runDecide($, decideBackend, endpoints, e as unknown as Record<string, unknown>)
+    return 'deny' in outcome ? outcome : { result: JSON.stringify(outcome.payload) }
   }).catch(() => ({ deny: 'decide に失敗しました' }))
 }
