@@ -40,8 +40,8 @@
     "simpleEffort": {
       "type": "string",
       "title": "Effort for simple tasks",
-      "description": "簡単なタスクの effort（Haiku 5.5 の推奨値）",
-      "default": "medium",
+      "description": "簡単なタスクの effort（簡単なものは低く）",
+      "default": "low",
       "options": [
         "low",
         "medium",
@@ -53,8 +53,8 @@
     "standardEffort": {
       "type": "string",
       "title": "Effort for standard tasks",
-      "description": "通常のタスクの effort（Sonnet 5.5 の推奨値）",
-      "default": "high",
+      "description": "通常のタスクの effort",
+      "default": "medium",
       "options": [
         "low",
         "medium",
@@ -66,8 +66,8 @@
     "complexEffort": {
       "type": "string",
       "title": "Effort for complex tasks",
-      "description": "複雑なタスクの effort（Opus 5.5 の推奨値）",
-      "default": "medium",
+      "description": "複雑なタスクの effort（難しいものは高く）",
+      "default": "high",
       "options": [
         "low",
         "medium",

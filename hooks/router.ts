@@ -17,9 +17,9 @@ const SWITCH_GAP = 2
 // モデルは変えず effort で重さを合わせる（会話途中の effort 変更ではキャッシュは失われない）
 const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 const DEFAULT_EFFORT: Record<Weight, Effort> = {
-  simple: 'medium',
-  standard: 'high',
-  complex: 'medium',
+  simple: 'low',
+  standard: 'medium',
+  complex: 'high',
 }
 
 const CLASSIFIER_HINT = `Classify the coding-assistant task below by how much reasoning it needs.

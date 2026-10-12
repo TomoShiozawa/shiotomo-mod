@@ -4,9 +4,9 @@ Claude Code の mod。プロンプトごとにタスクの重さを分類し、�
 
 | ティア | 例 | 既定モデル | 既定 effort |
 | --- | --- | --- | --- |
-| simple | 質問・コード説明・タイポ修正・リネーム | `haiku` | `medium` |
-| standard | 数ファイルの機能実装・テスト作成・通常のデバッグ | `sonnet` | `high` |
-| complex | 設計・大規模リファクタ・難しいバグ・セキュリティ分析 | `opus` | `medium` |
+| simple | 質問・コード説明・タイポ修正・リネーム | `haiku` | `low` |
+| standard | 数ファイルの機能実装・テスト作成・通常のデバッグ | `sonnet` | `medium` |
+| complex | 設計・大規模リファクタ・難しいバグ・セキュリティ分析 | `opus` | `high` |
 
 あわせて、分類・採点・yes/no のような「決まった選択肢から選ぶ判断」を、System-1 決定モデルの [Jev](https://flaviocopes.com/jev/)（TypeSafe のホスト API）やローカルで動かす [Laya](https://github.com/NandhaKishorM/laya) に任せられます。Claude が `decide` ツールで判断を投げ、確率つきの答えを受け取って作業を続けます。この機能は既定では無効です。
 
@@ -45,7 +45,9 @@ export CLAUDE_CODE_PLUGIN_DIRS=/path/to/shiotomo-mod
 mode: auto
 last route: -
 models: simple=haiku, standard=sonnet, complex=opus
-effort: simple=medium, standard=high, complex=medium
+effort: simple=low, standard=medium, complex=high
+model switching: on
+Jev / Laya: on
 classifier: haiku
 decide tool: off
 ```
@@ -55,7 +57,7 @@ decide tool: off
 何もしなくても、`auto` モードで自動的に振り分けます。プロンプトを送るたびに、ステータスラインへ現在のルートが出ます。
 
 ```
-router: claude-sonnet-5-5 (standard, auto, effort high)
+router: claude-sonnet-5-5 (standard, auto, effort medium)
 ```
 
 ### コマンド
@@ -137,10 +139,9 @@ LAYA_HOST=127.0.0.1 laya-serve    # 既定で :8000 に立つ
 | `simpleModel` | `haiku` | simple のモデル |
 | `standardModel` | `sonnet` | standard のモデル |
 | `complexModel` | `opus` | complex のモデル |
-| `simpleEffort` | `medium` | simple の effort（Haiku 5.5 の推奨値） |
-| `standardEffort` | `high` | standard の effort（Sonnet 5.5 の推奨値） |
-| `complexEffort` | `medium` | complex の effort（Opus 5.5 の推奨値） |
-
+| `simpleEffort` | `low` | simple の effort |
+| `standardEffort` | `medium` | standard の effort |
+| `complexEffort` | `high` | complex の effort |
 | `routingEnabled` | `true` | モデルの切り替えを有効にする。`false` ではモデルも effort も変えない（Jev / Laya には影響しない） |
 | `decisionEnabled` | `true` | Jev / Laya の利用（ティア分類と `decide` ツール）を有効にする。`false` では分類は haiku、`decide` は出さない（モデル切り替えには影響しない） |
 | `classifier` | `haiku` | ティア分類に使うモデル（`haiku` / `laya` / `jev`） |
@@ -176,7 +177,7 @@ settings ファイルに書く場合は、`pluginConfigs` にプラグイン名�
 
 ## 仕組み
 
-- `prompt.submit`: 自分で入力したプロンプトを `$.model.classify`（haiku）で 3 つのティアに分類します。短すぎるプロンプト（「続けて」など）は直前のルートを引き継ぎます。分類に失敗したときは standard として扱います。
+- `prompt.submit`: 自分で入力したプロンプトを、`classifier` の設定に従って haiku（`$.model.classify`）または Jev / Laya で 3 つのティアに分類します。短すぎるプロンプト（「続けて」など）は直前のルートを引き継ぎます。分類に失敗したときは standard として扱います。
 - `turn.step`: メイン会話のリクエストだけ、モデルと effort を差し替えます。サブエージェントには触れません。
 - `tool.call`（`mcp__shiotomo-mod__decide`）: 質問を確かめてから Jev / Laya の `/v1/systemone` に送り、答えを JSON でモデルに返します。接続できないときやキーがないときは、理由をエラー結果として返します。
 - `session.start`: Jev / Laya を有効にしていてすぐ使えないとき、キーの入力や laya-serve の用意を促す案内を出します。
@@ -186,7 +187,7 @@ settings ファイルに書く場合は、`pluginConfigs` にプラグイン名�
 
 ## 注意
 
-- **分類の費用と待ち時間**：プロンプトごとに haiku を 1 回呼びます。そのぶん、毎回少し待ち時間と費用が増えます。
+- **分類の費用と待ち時間**：プロンプトごとに `classifier` で選んだ分類器を 1 回呼びます（既定は haiku）。haiku ではそのぶん毎回少し待ち時間と費用が増えます。
 - **キャッシュ**：モデルを切り替えたターンは、会話全体のキャッシュを書き直します。切り替えが多いと、軽い依頼で節約できる分を上回ることがあります。
 - **`/model` との関係**：`auto` と固定モードでは、`/model` や `--model` で選んだモデルをこの mod が上書きします。自分で選んだモデルを使いたいときは `/router off` にしてください。
 
