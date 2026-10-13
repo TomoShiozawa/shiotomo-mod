@@ -343,14 +343,12 @@ export const register: Register = (on, options) => {
 
     if (arg === '') {
       const current = await read($, mode)
-      const last = await read($, route)
       const lines = [
         `mode: ${current}`,
-        `last route: ${last === null ? '-' : `${last.model} (${last.tier})`}`,
         `models: simple=${models.simple}, standard=${models.standard}, complex=${models.complex}`,
         `effort: simple=${efforts.simple}, standard=${efforts.standard}, complex=${efforts.complex}`,
-        `model switching: ${routingEnabled ? 'on' : 'off'}`,
-        `Jev / Laya: ${decisionEnabled ? 'on' : 'off'}`,
+        `Enable model switching: ${routingEnabled ? 'on' : 'off'}`,
+        `Enable decision making (Jev / Laya): ${decisionEnabled ? 'on' : 'off'}`,
         `classifier: ${classifier}`,
         `decide tool: ${decideBackend === 'off' ? 'off' : `${decideBackend} (${endpoints[decideBackend].url})`}`,
       ]

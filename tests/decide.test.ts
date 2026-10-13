@@ -202,14 +202,11 @@ test('/decide は Jev / Laya がどちらも無効なら送らずに案内する
 test('classifier が laya ならティアの分類を Laya に任せる', { options: { classifier: 'laya' } }, async ($, on) => {
   const sent = server(on, () => ({ answers: { tier: { type: 'choice', choice: 'complex' } } }))
   await $.prompt.submit({ text: 'アーキテクチャを再設計して、移行計画も立てて', wait: false, origin: { kind: 'composer' } })
-  const shown = await $.command.run({ command: 'router', args: '', origin: { kind: 'composer' } } as never)
   expect(sent[0]?.body?.questions).toBeDefined()
-  expect(JSON.stringify(shown)).toContain('last route: opus (complex)')
 })
 
 test('Laya での分類に失敗したら haiku で分類する', { options: { classifier: 'laya' } }, async ($, on) => {
-  server(on, () => undefined)
+  const sent = server(on, () => undefined)
   await $.prompt.submit({ text: 'このモジュールにテストを書いて', wait: false, origin: { kind: 'composer' } })
-  const shown = await $.command.run({ command: 'router', args: '', origin: { kind: 'composer' } } as never)
-  expect(JSON.stringify(shown)).toContain('(standard)')
+  expect(sent.length).toEqual(1)
 })
