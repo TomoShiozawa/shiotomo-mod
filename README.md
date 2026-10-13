@@ -43,11 +43,10 @@ export CLAUDE_CODE_PLUGIN_DIRS=/path/to/shiotomo-mod
 
 ```
 mode: auto
-last route: -
 models: simple=haiku, standard=sonnet, complex=opus
 effort: simple=low, standard=medium, complex=high
-model switching: on
-Jev / Laya: on
+Enable model switching: on
+Enable decision making (Jev / Laya): on
 classifier: haiku
 decide tool: off
 ```

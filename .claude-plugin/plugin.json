@@ -10,13 +10,13 @@
     "routingEnabled": {
       "type": "boolean",
       "title": "Enable model switching",
-      "description": "プロンプトごとのモデル切り替え。オフにすると常にセッションのモデルのまま（Jev / Laya の利用には影響しない）",
+      "description": "プロンプトごとのモデル切り替え。オフにすると常にセッションのモデルのまま",
       "default": true
     },
     "decisionEnabled": {
       "type": "boolean",
       "title": "Enable Jev / Laya",
-      "description": "Jev / Laya の利用（ティア分類と decide ツール）。オフにすると分類は haiku、decide ツールは出さない（モデル切り替えには影響しない）",
+      "description": "Jev / Laya の利用（ティア分類と decide ツール）。オフにすると分類は haiku、decide ツールは出さない",
       "default": true
     },
     "simpleModel": {
@@ -40,63 +40,37 @@
     "simpleEffort": {
       "type": "string",
       "title": "Effort for simple tasks",
-      "description": "簡単なタスクの effort（簡単なものは低く）",
+      "description": "簡単なタスクの effort",
       "default": "low",
-      "options": [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max"
-      ]
+      "options": ["low", "medium", "high", "xhigh", "max"]
     },
     "standardEffort": {
       "type": "string",
       "title": "Effort for standard tasks",
       "description": "通常のタスクの effort",
       "default": "medium",
-      "options": [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max"
-      ]
+      "options": ["low", "medium", "high", "xhigh", "max"]
     },
     "complexEffort": {
       "type": "string",
       "title": "Effort for complex tasks",
-      "description": "複雑なタスクの effort（難しいものは高く）",
+      "description": "複雑なタスクの effort",
       "default": "high",
-      "options": [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max"
-      ]
+      "options": ["low", "medium", "high", "xhigh", "max"]
     },
     "classifier": {
       "type": "string",
       "title": "Classifier for routing",
       "description": "プロンプトのティア分類に使うモデル。laya / jev は失敗したとき haiku に戻す",
       "default": "haiku",
-      "options": [
-        "haiku",
-        "laya",
-        "jev"
-      ]
+      "options": ["haiku", "laya", "jev"]
     },
     "decideBackend": {
       "type": "string",
       "title": "Backend of the decide tool",
       "description": "Claude が分類・採点・yes/no の判断を任せる decide ツールの送り先。off（既定）ではツールを出さない",
       "default": "off",
-      "options": [
-        "laya",
-        "jev",
-        "off"
-      ]
+      "options": ["laya", "jev", "off"]
     },
     "layaUrl": {
       "type": "string",
