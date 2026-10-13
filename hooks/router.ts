@@ -11,9 +11,11 @@ const TIERS: readonly Weight[] = ['simple', 'standard', 'complex']
 const MODE_KEY = 'mode'
 // これより短いプロンプト（「続けて」「ok」など）は直前のルートを引き継ぐ
 const MIN_CLASSIFY_LENGTH = 6
-// 自動では、いま使っているモデルのティアとの差がこの段階数以上になったときだけモデルを切り替える。
-// 会話途中のモデル切り替えはプロンプトキャッシュを作り直すので、小さな揺れでは切り替えない
-const SWITCH_GAP = 2
+// 自動では、重いティアへは 1 段階でもすぐ切り替える。軽いティアへは、差がこの段階数以上か、
+// 会話が小さい（直前のメインリクエストのメッセージ数が SMALL_CONVERSATION 未満）ときだけ切り替える。
+// 会話途中のモデル切り替えはプロンプトキャッシュを作り直すので、節約の小さい下げは長い会話では見送る
+const DOWNSHIFT_GAP = 2
+const SMALL_CONVERSATION = 10
 // モデルは変えず effort で重さを合わせる（会話途中の effort 変更ではキャッシュは失われない）
 const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 const DEFAULT_EFFORT: Record<Weight, Effort> = {
@@ -86,6 +88,8 @@ const mode = atom({ plugin: 'shiotomo-mod', key: 'mode' } as const, 'auto')
 const route = atom({ plugin: 'shiotomo-mod', key: 'route' } as const, null)
 // いま会話で使っているモデルが、どのティアのものか
 const modelTier = atom({ plugin: 'shiotomo-mod', key: 'modelTier' } as const, null as Weight | null)
+// 直前のメインリクエストのメッセージ数。prompt.submit の時点では取れないので、これを会話の大きさとして使う
+const messageCount = atom({ plugin: 'shiotomo-mod', key: 'messageCount' } as const, 0)
 
 const isMode = (value: unknown): value is Mode =>
   value === 'auto' || value === 'off' || TIERS.includes(value as Weight)
@@ -261,9 +265,12 @@ async function choose(
   const label = await classify($, classifier, endpoints, text)
   const tier = TIERS.find(one => one === label) ?? 'standard'
 
-  // 切り替えるのは、いまのモデルから大きく離れたときだけ。近いティアは同じモデルのまま effort で合わせる
+  // 上げはすぐ切り替える。下げは大きく離れたときか会話が小さいときだけで、それ以外は同じモデルのまま effort で合わせる
   const anchor = await read($, modelTier)
-  const applied = anchor === null || gap(tier, anchor) >= SWITCH_GAP ? tier : anchor
+  const up = anchor !== null && TIERS.indexOf(tier) > TIERS.indexOf(anchor)
+  const size = await read($, messageCount)
+  const applied =
+    anchor === null || up || gap(tier, anchor) >= DOWNSHIFT_GAP || size < SMALL_CONVERSATION ? tier : anchor
   await update($, modelTier, () => applied)
 
   return { tier, model: models[applied], isForced: false }
@@ -373,7 +380,9 @@ export const register: Register = (on, options) => {
 
   // メインループのリクエストだけモデルを差し替える。サブエージェントは各自の設定に任せる
   on('turn.step', async function* ($, e, next) {
-    if (!routingEnabled || e.agentId !== undefined || (await read($, mode)) === 'off') return yield* next(e)
+    if (!routingEnabled || e.agentId !== undefined) return yield* next(e)
+    await update($, messageCount, () => e.messageCount)
+    if ((await read($, mode)) === 'off') return yield* next(e)
 
     const chosen = await read($, route)
     if (chosen === null) return yield* next(e)

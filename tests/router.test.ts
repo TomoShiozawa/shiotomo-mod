@@ -71,24 +71,42 @@ test('タスクの重さに応じて effort を変える（モデルは変えな
   expect(sent.efforts).toEqual(['medium'])
 })
 
-test('近いティアへの変化ではモデルを切り替えない（ヒステリシス）', async ($, on) => {
-  const sent = bottom(on, ['complex', 'standard', 'standard'])
+test('上げは1段階の差でもすぐモデルを切り替える', async ($, on) => {
+  const sent = bottom(on, ['standard', 'complex'])
+  await submit($, 'このモジュールにテストを書いて')
+  await step($, { ...STEP, messageCount: 50 })
   await submit($, 'アーキテクチャを再設計して、移行計画も立てて')
-  await step($)
+  await step($, { ...STEP, messageCount: 50 })
+  expect(sent).toEqual(['claude-sonnet-5-5', 'claude-opus-5-5'])
+  expect(sent.efforts).toEqual(['medium', 'high'])
+})
+
+test('大きい会話では1段階の下げでモデルは粘り、effort はティア基準にする', async ($, on) => {
+  const sent = bottom(on, ['complex', 'standard'])
+  await submit($, 'アーキテクチャを再設計して、移行計画も立てて')
+  await step($, { ...STEP, messageCount: 50 })
   await submit($, 'このモジュールにテストを書いて')
-  await step($)
+  await step($, { ...STEP, messageCount: 50 })
+  expect(sent).toEqual(['claude-opus-5-5', 'claude-opus-5-5'])
+  expect(sent.efforts).toEqual(['high', 'medium'])
+})
+
+test('小さい会話なら1段階の下げでもモデルを切り替える', async ($, on) => {
+  const sent = bottom(on, ['complex', 'standard'])
+  await submit($, 'アーキテクチャを再設計して、移行計画も立てて')
+  await step($, { ...STEP, messageCount: 3 })
   await submit($, 'このモジュールにテストを書いて')
-  await step($)
-  expect(sent).toEqual(['claude-opus-5-5', 'claude-opus-5-5', 'claude-opus-5-5'])
-  expect(sent.efforts).toEqual(['high', 'medium', 'medium'])
+  await step($, { ...STEP, messageCount: 3 })
+  expect(sent).toEqual(['claude-opus-5-5', 'claude-sonnet-5-5'])
+  expect(sent.efforts).toEqual(['high', 'medium'])
 })
 
 test('大きく離れたティアへの変化ではモデルを切り替える', async ($, on) => {
   const sent = bottom(on, ['complex', 'simple'])
   await submit($, 'アーキテクチャを再設計して、移行計画も立てて')
-  await step($)
+  await step($, { ...STEP, messageCount: 50 })
   await submit($, 'この関数名のタイポを直して')
-  await step($)
+  await step($, { ...STEP, messageCount: 50 })
   expect(sent).toEqual(['claude-opus-5-5', 'claude-haiku-5-5'])
   expect(sent.efforts).toEqual(['high', 'low'])
 })
