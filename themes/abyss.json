@@ -1,0 +1,31 @@
+{
+  "name": "Abyss",
+  "base": "dark",
+  "overrides": {
+    "claude": "#00f0d0",
+    "text": "#cfe8f3",
+    "inverseText": "#03101c",
+    "inactive": "#5f7f96",
+    "subtle": "#1d3550",
+    "suggestion": "#4cc9f0",
+    "permission": "#3a8fd9",
+    "remember": "#9d8cff",
+    "success": "#7dffb2",
+    "error": "#ff4d8d",
+    "warning": "#ffd166",
+    "merged": "#9d8cff",
+    "promptBorder": "#1f6f8b",
+    "planMode": "#4cc9f0",
+    "autoAccept": "#7dffb2",
+    "bashBorder": "#ffd166",
+    "ide": "#4cc9f0",
+    "diffAdded": "#0c3a33",
+    "diffRemoved": "#3d1030",
+    "diffAddedDimmed": "#082923",
+    "diffRemovedDimmed": "#2a0c22",
+    "diffAddedWord": "#13856a",
+    "diffRemovedWord": "#b8316a",
+    "userMessageBackground": "#0a1a2e",
+    "selectionBg": "#1b3d5c"
+  }
+}
