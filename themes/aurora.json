@@ -1,0 +1,31 @@
+{
+  "name": "Aurora",
+  "base": "dark",
+  "overrides": {
+    "claude": "#6ee7b7",
+    "text": "#e6f4ff",
+    "inverseText": "#0b0820",
+    "inactive": "#7d88a8",
+    "subtle": "#3a3f63",
+    "suggestion": "#a78bfa",
+    "permission": "#60a5fa",
+    "remember": "#f0abfc",
+    "success": "#5eead4",
+    "error": "#fb7185",
+    "warning": "#fde68a",
+    "merged": "#f0abfc",
+    "promptBorder": "#7c6fe0",
+    "planMode": "#a78bfa",
+    "autoAccept": "#5eead4",
+    "bashBorder": "#fde68a",
+    "ide": "#60a5fa",
+    "diffAdded": "#0f3d3a",
+    "diffRemoved": "#3e1630",
+    "diffAddedDimmed": "#0a2a28",
+    "diffRemovedDimmed": "#2a0f22",
+    "diffAddedWord": "#14866f",
+    "diffRemovedWord": "#be3a5c",
+    "userMessageBackground": "#15132e",
+    "selectionBg": "#2e2a6b"
+  }
+}
