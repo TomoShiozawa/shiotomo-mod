@@ -1,0 +1,31 @@
+{
+  "name": "Gaming RGB",
+  "base": "dark",
+  "overrides": {
+    "claude": "#ff0055",
+    "text": "#f5f5ff",
+    "inverseText": "#07070f",
+    "inactive": "#8a86a8",
+    "subtle": "#403c63",
+    "suggestion": "#00e5ff",
+    "permission": "#00b8ff",
+    "remember": "#d500f9",
+    "success": "#00ff6a",
+    "error": "#ff1744",
+    "warning": "#ffea00",
+    "merged": "#aa00ff",
+    "promptBorder": "#ff9100",
+    "planMode": "#00e5ff",
+    "autoAccept": "#76ff03",
+    "bashBorder": "#ff4081",
+    "ide": "#2979ff",
+    "diffAdded": "#0b3d1f",
+    "diffRemoved": "#4a0d1d",
+    "diffAddedDimmed": "#07261a",
+    "diffRemovedDimmed": "#2e0812",
+    "diffAddedWord": "#00c853",
+    "diffRemovedWord": "#d50057",
+    "userMessageBackground": "#14102b",
+    "selectionBg": "#4a1d8f"
+  }
+}

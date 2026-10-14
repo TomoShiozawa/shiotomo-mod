@@ -1,0 +1,31 @@
+{
+  "name": "Cyberpunk",
+  "base": "dark",
+  "overrides": {
+    "claude": "#ff2a6d",
+    "text": "#d1f7ff",
+    "inverseText": "#05010f",
+    "inactive": "#7a6f9b",
+    "subtle": "#4b3f72",
+    "suggestion": "#05d9e8",
+    "permission": "#01c8ee",
+    "remember": "#b967ff",
+    "success": "#39ff14",
+    "error": "#ff073a",
+    "warning": "#fffc00",
+    "merged": "#b967ff",
+    "promptBorder": "#ff2a6d",
+    "planMode": "#05d9e8",
+    "autoAccept": "#b967ff",
+    "bashBorder": "#fffc00",
+    "ide": "#05d9e8",
+    "diffAdded": "#0b3d2e",
+    "diffRemoved": "#4a0d24",
+    "diffAddedDimmed": "#08261d",
+    "diffRemovedDimmed": "#2e0816",
+    "diffAddedWord": "#00b36b",
+    "diffRemovedWord": "#d1144a",
+    "userMessageBackground": "#1a0f33",
+    "selectionBg": "#3d1a6d"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "Molokai",
+  "base": "dark",
+  "overrides": {
+    "claude": "#fd971f",
+    "text": "#f8f8f2",
+    "inverseText": "#1b1d1e",
+    "inactive": "#7e8e91",
+    "subtle": "#465457",
+    "suggestion": "#66d9ef",
+    "permission": "#66d9ef",
+    "remember": "#ae81ff",
+    "success": "#a6e22e",
+    "error": "#f92672",
+    "warning": "#e6db74",
+    "merged": "#ae81ff",
+    "promptBorder": "#465457",
+    "planMode": "#66d9ef",
+    "autoAccept": "#ae81ff",
+    "bashBorder": "#f92672",
+    "ide": "#66d9ef",
+    "diffAdded": "#2d3f1a",
+    "diffRemoved": "#4a1630",
+    "diffAddedDimmed": "#222d15",
+    "diffRemovedDimmed": "#33101f",
+    "diffAddedWord": "#5f8a1c",
+    "diffRemovedWord": "#b01c57",
+    "userMessageBackground": "#232526",
+    "selectionBg": "#403d3d"
+  }
+}
