@@ -1,6 +1,6 @@
 {
   "name": "shiotomo-mod",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": {
     "name": "shiotomo"
   },
@@ -36,27 +36,6 @@
       "title": "Model for complex tasks",
       "description": "設計・大規模リファクタ・難しいデバッグに使うモデル",
       "default": "opus"
-    },
-    "simpleEffort": {
-      "type": "string",
-      "title": "Effort for simple tasks",
-      "description": "簡単なタスクの effort",
-      "default": "low",
-      "options": ["low", "medium", "high", "xhigh", "max"]
-    },
-    "standardEffort": {
-      "type": "string",
-      "title": "Effort for standard tasks",
-      "description": "通常のタスクの effort",
-      "default": "medium",
-      "options": ["low", "medium", "high", "xhigh", "max"]
-    },
-    "complexEffort": {
-      "type": "string",
-      "title": "Effort for complex tasks",
-      "description": "複雑なタスクの effort",
-      "default": "high",
-      "options": ["low", "medium", "high", "xhigh", "max"]
     },
     "classifier": {
       "type": "string",

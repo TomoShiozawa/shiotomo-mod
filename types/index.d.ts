@@ -3,7 +3,10 @@ export type Weight = 'simple' | 'standard' | 'complex'
 /** auto: 毎回分類する / off: 何もしない / Weight: そのティアに固定 */
 export type Mode = 'auto' | 'off' | Weight
 
-export type Route = { tier: Weight; model: string; isForced: boolean }
+export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+/** effort: モデルの既定より下げるときだけ入る。undefined ならモデルの既定 */
+export type Route = { tier: Weight; model: string; isForced: boolean; effort?: Effort }
 
 /** 判断を任せる System-1 決定モデル。laya: ローカルの laya-serve / jev: TypeSafe のホスト API */
 export type Backend = 'laya' | 'jev'

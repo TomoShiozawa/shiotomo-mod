@@ -208,5 +208,16 @@ test('classifier が laya ならティアの分類を Laya に任せる', { opti
 test('Laya での分類に失敗したら haiku で分類する', { options: { classifier: 'laya' } }, async ($, on) => {
   const sent = server(on, () => undefined)
   await $.prompt.submit({ text: 'このモジュールにテストを書いて', wait: false, origin: { kind: 'composer' } })
-  expect(sent.length).toEqual(1)
+  expect(sent.length).toEqual(2)
+})
+
+test('classifier が laya ならモデル切り替え時の effort の判定も Laya に任せる', { options: { classifier: 'laya' } }, async ($, on) => {
+  const sent = server(on, body =>
+    (body?.questions as Record<string, unknown>)?.effort === undefined
+      ? { answers: { tier: { type: 'choice', choice: 'complex' } } }
+      : { answers: { effort: { type: 'choice', choice: 'higher' } } },
+  )
+  await $.prompt.submit({ text: 'アーキテクチャを再設計して、移行計画も立てて', wait: false, origin: { kind: 'composer' } })
+  expect(sent.length).toEqual(2)
+  expect(Object.keys(sent[1]?.body?.questions as object)).toEqual(['effort'])
 })
