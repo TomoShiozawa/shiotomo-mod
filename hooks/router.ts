@@ -1,11 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Backend, Mode, Route, Weight } from '../types'
+import type { Backend, Effort, Mode, Route, Weight } from '../types'
 import { MAX_STATES, checkQuestions, parseDecideArgs, trimSlash } from './systemone'
 import type { Decision, Endpoint, Questions } from './systemone'
-
-type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 const TIERS: readonly Weight[] = ['simple', 'standard', 'complex']
 const MODE_KEY = 'mode'
@@ -16,13 +14,25 @@ const MIN_CLASSIFY_LENGTH = 6
 // 会話途中のモデル切り替えはプロンプトキャッシュを作り直すので、節約の小さい下げは長い会話では見送る
 const DOWNSHIFT_GAP = 2
 const SMALL_CONVERSATION = 10
-// モデルは変えず effort で重さを合わせる（会話途中の effort 変更ではキャッシュは失われない）
-const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max']
-const DEFAULT_EFFORT: Record<Weight, Effort> = {
-  simple: 'low',
-  standard: 'medium',
-  complex: 'high',
-}
+// effort は各モデルの既定に任せる。変えるのは次の 2 つのときだけ（会話途中の effort 変更ではキャッシュは失われない）
+// - 下げを見送って重いモデルに留まるとき: タスクのティアに合わせて、モデルの既定より下がる場合だけ下げる
+// - モデルを切り替えるとき: そのモデルの既定のままでは明らかに合わないと判定されたら、既定から 1 段階下げるか上げる
+const LIGHT_EFFORT: Partial<Record<Weight, Effort>> = { simple: 'low', standard: 'medium' }
+const EFFORT_VERDICTS = ['default', 'lower', 'higher'] as const
+
+// モデルごとの既定の effort（https://platform.claude.com/docs/en/build-with-claude/effort）。
+// Opus 5.5 と Haiku 5.5 は medium、effort に対応するそれ以外のモデルは high
+const MEDIUM_DEFAULT = /claude-(opus-5-5|haiku-5-5)/
+// xhigh を受け付けないモデル。ここでは high から上げられない
+const NO_XHIGH = /claude-(sonnet-4-6|opus-4-6|opus-4-5)/
+
+const EFFORT_HINT = (model: string, standard: Effort) => `The task below will run on ${model} with its default reasoning effort (${standard}).
+default: the default effort is right. Choose this unless the mismatch is obvious.
+lower: obviously trivial work that needs almost no reasoning even for its category.
+higher: obviously hard work that needs deeper reasoning than usual for its category.
+
+Task:
+`
 
 const CLASSIFIER_HINT = `Classify the coding-assistant task below by how much reasoning it needs.
 simple: a factual question, explaining a snippet, a typo or one-line fix, renaming, formatting, running a known command.
@@ -45,6 +55,19 @@ const TIER_QUESTIONS: Questions = {
     },
   },
 }
+
+// effort の判定を Jev / Laya に任せるときの質問。haiku の EFFORT_HINT と同じ基準
+const effortQuestions = (model: string, standard: Effort): Questions => ({
+  effort: {
+    type: 'choice',
+    instructions: `Is the default reasoning effort (${standard} on ${model}) right for this coding-assistant task? Choose default unless the mismatch is obvious.`,
+    criteria: {
+      default: 'the default effort is right',
+      lower: 'obviously trivial work that needs almost no reasoning even for its category',
+      higher: 'obviously hard work that needs deeper reasoning than usual for its category',
+    },
+  },
+})
 
 const DECIDE_TOOL = 'mcp__shiotomo-mod__decide'
 const DECIDE_DESCRIPTION = `Hands a bounded judgment to a System-1 decision model (Laya, run locally, or TypeSafe's hosted Jev) and returns typed answers with calibrated probabilities, in milliseconds and at a tiny fraction of your own cost.
@@ -95,7 +118,6 @@ const isMode = (value: unknown): value is Mode =>
   value === 'auto' || value === 'off' || TIERS.includes(value as Weight)
 
 type Models = Record<Weight, string>
-type Efforts = Record<Weight, Effort>
 type Classifier = 'haiku' | Backend
 type Endpoints = Record<Backend, Endpoint>
 
@@ -107,10 +129,34 @@ const flag = (value: unknown, fallback: boolean): boolean =>
 const isBackend = (value: unknown): value is Backend => BACKENDS.includes(value as Backend)
 
 // turn.step はエイリアスを解決しないので、ここでフル ID に直してから渡す
+const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max']
+
 const ALIASES: Record<string, string> = {
   haiku: 'claude-haiku-5-5',
   sonnet: 'claude-sonnet-5-5',
   opus: 'claude-opus-5-5',
+}
+
+// モデルの既定の effort。effort に対応しないモデルは undefined
+function defaultEffort(model: string): Effort | undefined {
+  const id = ALIASES[model.toLowerCase()] ?? model
+  if (NO_EFFORT.test(id)) return undefined
+  return MEDIUM_DEFAULT.test(id) ? 'medium' : 'high'
+}
+
+// 既定から 1 段階ずらした effort。ずらせない（端、または対応しない段）ときは undefined
+function shifted(model: string, direction: -1 | 1): Effort | undefined {
+  const standard = defaultEffort(model)
+  if (standard === undefined) return undefined
+  const next = EFFORTS[EFFORTS.indexOf(standard) + direction]
+  return direction === 1 && next === 'xhigh' && NO_XHIGH.test(ALIASES[model.toLowerCase()] ?? model) ? undefined : next
+}
+
+// ティアに合わせて下げる。モデルの既定より下がるときだけ
+function lighter(model: string, target: Effort | undefined): Effort | undefined {
+  const standard = defaultEffort(model)
+  if (standard === undefined || target === undefined) return undefined
+  return EFFORTS.indexOf(target) < EFFORTS.indexOf(standard) ? target : undefined
 }
 
 // effort を受け付けないモデル（Haiku 4.5 / Sonnet 4.5 以前、Claude 3 系）
@@ -125,11 +171,11 @@ function resolveModel(target: string, current: string): string {
   return prefix !== '' && id.startsWith('claude-') ? prefix + id : id
 }
 
-function show($: EngineInterface, routingEnabled: boolean, efforts: Efforts, current: Mode, chosen: Route | null) {
+function show($: EngineInterface, routingEnabled: boolean, current: Mode, chosen: Route | null) {
   if (!routingEnabled || current === 'off') return $.ui.status(undefined)
   if (chosen === null) return $.ui.status(`router: ${current}`)
   const how = chosen.isForced ? 'fixed' : 'auto'
-  $.ui.status(`router: ${chosen.model} (${chosen.tier}, ${how}, effort ${efforts[chosen.tier]})`)
+  $.ui.status(`router: ${chosen.model} (${chosen.tier}, ${how}${chosen.effort === undefined ? '' : `, effort ${chosen.effort}`})`)
 }
 
 const gap = (a: Weight, b: Weight) => Math.abs(TIERS.indexOf(a) - TIERS.indexOf(b))
@@ -247,6 +293,36 @@ async function classify(
   return $.model.classify(CLASSIFIER_HINT + task, TIERS, { model: 'haiku' })
 }
 
+// モデルを切り替えるときだけ呼ぶ。そのモデルの既定でよければ undefined
+// Jev / Laya を選んでいればそちらで判定し、失敗したときは haiku に戻す
+async function judgeEffort(
+  $: EngineInterface,
+  classifier: Classifier,
+  endpoints: Endpoints,
+  model: string,
+  text: string,
+): Promise<Effort | undefined> {
+  const standard = defaultEffort(model)
+  // effort に対応しないモデルや、上にも下にもずらせないモデルは、判定しても変えようがない
+  if (standard === undefined || (shifted(model, -1) === undefined && shifted(model, 1) === undefined)) return undefined
+  const task = text.slice(0, 4000)
+  let verdict: string | undefined
+  try {
+    if (classifier !== 'haiku') {
+      try {
+        const { answers } = await decide($, endpoints[classifier], { task }, effortQuestions(model, standard))
+        verdict = String(answers.effort?.choice)
+      } catch (error) {
+        $.ui.log(`${classifier} での effort の判定に失敗したので haiku で判定します: ${String(error)}`, { to: 'debug' })
+      }
+    }
+    verdict ??= await $.model.classify(EFFORT_HINT(model, standard) + task, EFFORT_VERDICTS, { model: 'haiku' })
+  } catch {
+    return undefined
+  }
+  return verdict === 'lower' ? shifted(model, -1) : verdict === 'higher' ? shifted(model, 1) : undefined
+}
+
 async function choose(
   $: EngineInterface,
   models: Models,
@@ -273,17 +349,17 @@ async function choose(
     anchor === null || up || gap(tier, anchor) >= DOWNSHIFT_GAP || size < SMALL_CONVERSATION ? tier : anchor
   await update($, modelTier, () => applied)
 
-  return { tier, model: models[applied], isForced: false }
+  const previous = await read($, route)
+  const model = models[applied]
+  let effort: Effort | undefined
+  if (applied !== tier) effort = lighter(model, LIGHT_EFFORT[tier])
+  else if (anchor === null || applied !== anchor) effort = await judgeEffort($, classifier, endpoints, model, text)
+  else if (previous?.model === model && previous.tier === tier) effort = previous.effort
+
+  return { tier, model, isForced: false, effort }
 }
 
 export const register: Register = (on, options) => {
-  const pick = (value: unknown, tier: Weight): Effort =>
-    EFFORTS.find(one => one === value) ?? DEFAULT_EFFORT[tier]
-  const efforts: Efforts = {
-    simple: pick(options.simpleEffort, 'simple'),
-    standard: pick(options.standardEffort, 'standard'),
-    complex: pick(options.complexEffort, 'complex'),
-  }
   const models: Models = {
     simple: String(options.simpleModel ?? 'haiku'),
     standard: String(options.standardModel ?? 'sonnet'),
@@ -333,7 +409,7 @@ export const register: Register = (on, options) => {
       const hint = await setupHint($, backend, endpoints)
       if (hint !== undefined) $.ui.log(hint)
     }
-    show($, routingEnabled, efforts, await read($, mode), null)
+    show($, routingEnabled, await read($, mode), null)
 
     return next(e)
   })
@@ -346,7 +422,6 @@ export const register: Register = (on, options) => {
       const lines = [
         `mode: ${current}`,
         `models: simple=${models.simple}, standard=${models.standard}, complex=${models.complex}`,
-        `effort: simple=${efforts.simple}, standard=${efforts.standard}, complex=${efforts.complex}`,
         `Enable model switching: ${routingEnabled ? 'on' : 'off'}`,
         `Enable decision making (Jev / Laya): ${decisionEnabled ? 'on' : 'off'}`,
         `classifier: ${classifier}`,
@@ -359,7 +434,7 @@ export const register: Register = (on, options) => {
 
     await update($, mode, () => arg)
     await $.store.set(MODE_KEY, arg)
-    show($, routingEnabled, efforts, arg, null)
+    show($, routingEnabled, arg, null)
 
     return { text: `mode を ${arg} にしました。` }
   })
@@ -371,7 +446,7 @@ export const register: Register = (on, options) => {
 
     const chosen = await choose($, models, classifier, endpoints, e.text)
     await update($, route, () => chosen)
-    show($, routingEnabled, efforts, await read($, mode), chosen)
+    show($, routingEnabled, await read($, mode), chosen)
 
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -386,7 +461,7 @@ export const register: Register = (on, options) => {
     if (chosen === null) return yield* next(e)
 
     const model = resolveModel(chosen.model, e.model)
-    const effort = NO_EFFORT.test(model) ? undefined : efforts[chosen.tier]
+    const effort = NO_EFFORT.test(model) ? undefined : chosen.effort
 
     return yield* next({ ...e, model, effort })
   })

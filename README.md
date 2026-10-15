@@ -1,13 +1,13 @@
 # shiotomo-mod
 
-Claude Code の mod。プロンプトごとにタスクの重さを分類し、そのターンを最適なモデルと effort で実行します。
+Claude Code の mod。プロンプトごとにタスクの重さを分類し、そのターンを最適なモデルで実行します。effort は各モデルの既定に任せ、明らかに合わないときだけ変えます。
 
 
-| ティア      | 例                          | 既定モデル    | 既定 effort |
-| -------- | -------------------------- | -------- | --------- |
-| simple   | 質問・コード説明・タイポ修正・リネーム        | `haiku`  | `low`     |
-| standard | 数ファイルの機能実装・テスト作成・通常のデバッグ   | `sonnet` | `medium`  |
-| complex  | 設計・大規模リファクタ・難しいバグ・セキュリティ分析 | `opus`   | `high`    |
+| ティア      | 例                          | 既定モデル    |
+| -------- | -------------------------- | -------- |
+| simple   | 質問・コード説明・タイポ修正・リネーム        | `haiku`  |
+| standard | 数ファイルの機能実装・テスト作成・通常のデバッグ   | `sonnet` |
+| complex  | 設計・大規模リファクタ・難しいバグ・セキュリティ分析 | `opus`   |
 
 
 ## 導入
@@ -33,7 +33,6 @@ claude --plugin-dir ./shiotomo-mod
 ```
 mode: auto
 models: simple=haiku, standard=sonnet, complex=opus
-effort: simple=low, standard=medium, complex=high
 Enable model switching: on
 Enable decision making (Jev / Laya): on
 classifier: haiku
@@ -45,7 +44,7 @@ decide tool: off
 何もしなくても、`auto` モードで自動的に振り分けます。プロンプトを送るたびに、ステータスラインへ現在のルートが出ます。
 
 ```
-router: claude-sonnet-5-5 (standard, auto, effort medium)
+router: claude-sonnet-5-5 (standard, auto)
 ```
 
 ### コマンド
@@ -137,9 +136,6 @@ LAYA_HOST=127.0.0.1 laya-serve    # 既定で :8000 に立つ
 | `simpleModel`     | `haiku`                   | simple のモデル                                                                                  |
 | `standardModel`   | `sonnet`                  | standard のモデル                                                                                |
 | `complexModel`    | `opus`                    | complex のモデル                                                                                 |
-| `simpleEffort`    | `low`                     | simple の effort                                                                              |
-| `standardEffort`  | `medium`                  | standard の effort                                                                            |
-| `complexEffort`   | `high`                    | complex の effort                                                                             |
 | `routingEnabled`  | `true`                    | モデルの切り替えを有効にする。`false` ではモデルも effort も変えない（Jev / Laya には影響しない）                               |
 | `decisionEnabled` | `true`                    | Jev / Laya の利用（ティア分類と `decide` ツール）を有効にする。`false` では分類は haiku、`decide` は出さない（モデル切り替えには影響しない） |
 | `classifier`      | `haiku`                   | ティア分類に使うモデル（`haiku` / `laya` / `jev`）                                                        |
@@ -151,7 +147,7 @@ LAYA_HOST=127.0.0.1 laya-serve    # 既定で :8000 に立つ
 | `jevApiKey`       | なし                        | TypeSafe の API キー                                                                            |
 
 
-effort は `low` / `medium` / `high` / `xhigh` / `max` から選びます。`layaApiKey` と `jevApiKey` は機密の項目として、settings ファイルではなく安全な保存先に置かれます。機密項目は `/config` の行には出ないので、`/plugin configure shiotomo-mod`（ターミナルからは `claude plugin configure shiotomo-mod@shiotomo-mod --values-stdin`）で入力します。
+`layaApiKey` と `jevApiKey` は機密の項目として、settings ファイルではなく安全な保存先に置かれます。機密項目は `/config` の行には出ないので、`/plugin configure shiotomo-mod`（ターミナルからは `claude plugin configure shiotomo-mod@shiotomo-mod --values-stdin`）で入力します。
 
 settings ファイルに書く場合は、`pluginConfigs` にプラグイン名で指定します。
 
@@ -160,8 +156,7 @@ settings ファイルに書く場合は、`pluginConfigs` にプラグイン名�
   "pluginConfigs": {
     "shiotomo-mod": {
       "options": {
-        "standardModel": "claude-sonnet-5-5",
-        "complexEffort": "xhigh"
+        "standardModel": "claude-sonnet-5-5"
       }
     }
   }
@@ -172,7 +167,7 @@ settings ファイルに書く場合は、`pluginConfigs` にプラグイン名�
 
 - エイリアス（`haiku` / `sonnet` / `opus`）は、`claude-haiku-5-5` などのフル ID に変換して送ります。フル ID を直接書くこともできます。
 - Bedrock などでモデル名に `us.anthropic.` のような接頭辞が付いている場合は、それを引き継ぎます。
-- effort に対応しないモデル（Haiku 4.5 / Sonnet 4.5 以前）を指定した場合、effort は送りません。
+- effort は各モデルの既定に任せ、明らかに合わないときだけ変更します。
 
 ## 注意
 
