@@ -2,6 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Backend, Effort, Mode, Route, Weight } from '../types'
+import { FRAME_MS, animationOf, lane, pick } from './animation'
+import type { Playing } from './animation'
 import { MAX_STATES, checkQuestions, parseDecideArgs, trimSlash } from './systemone'
 import type { Decision, Endpoint, Questions } from './systemone'
 
@@ -113,6 +115,8 @@ const route = atom({ plugin: 'shiotomo-mod', key: 'route' } as const, null)
 const modelTier = atom({ plugin: 'shiotomo-mod', key: 'modelTier' } as const, null as Weight | null)
 // 直前のメインリクエストのメッセージ数。prompt.submit の時点では取れないので、これを会話の大きさとして使う
 const messageCount = atom({ plugin: 'shiotomo-mod', key: 'messageCount' } as const, 0)
+// animationStyle が random のとき、いま走らせているもの。依頼ごとに選び直す
+const playing = atom({ plugin: 'shiotomo-mod', key: 'playing' } as const, null as Playing | null)
 
 const isMode = (value: unknown): value is Mode =>
   value === 'auto' || value === 'off' || TIERS.includes(value as Weight)
@@ -386,6 +390,9 @@ export const register: Register = (on, options) => {
   const classifier: Classifier = decisionEnabled && isBackend(options.classifier) ? options.classifier : 'haiku'
   const decideBackend: Backend | 'off' = decisionEnabled && isBackend(options.decideBackend) ? options.decideBackend : 'off'
 
+  // Spinner 行の動くアスキーアート（ジョーク機能）。既定ではオフ
+  const animation = animationOf(options.animationStyle)
+
   on('session.start', async ($, e, next) => {
     const saved = await $.store.get(MODE_KEY)
     if (isMode(saved)) await update($, mode, () => saved)
@@ -410,6 +417,9 @@ export const register: Register = (on, options) => {
       if (hint !== undefined) $.ui.log(hint)
     }
     show($, routingEnabled, await read($, mode), null)
+    // 描画はキャッシュされるので、時計で再描画させてコマを進める
+    if (animation === 'random') await update($, playing, () => pick(Math.random))
+    if (animation !== 'off') $.clock.every(FRAME_MS, () => $.ui.invalidate('ui.render'))
 
     return next(e)
   })
@@ -426,6 +436,7 @@ export const register: Register = (on, options) => {
         `Enable decision making (Jev / Laya): ${decisionEnabled ? 'on' : 'off'}`,
         `classifier: ${classifier}`,
         `decide tool: ${decideBackend === 'off' ? 'off' : `${decideBackend} (${endpoints[decideBackend].url})`}`,
+        `animation: ${animation}`,
       ]
       return { text: lines.join('\n') }
     }
@@ -442,7 +453,9 @@ export const register: Register = (on, options) => {
   // 人が打ったプロンプト（端末の Enter、claude -p / SDK）だけを分類する。
   // 通知やプラグインからの投入は直前のルートのまま
   on('prompt.submit', async ($, e, next) => {
-    if (!routingEnabled || (e.origin.kind !== 'composer' && e.origin.kind !== 'sdk')) return next(e)
+    if (e.origin.kind !== 'composer' && e.origin.kind !== 'sdk') return next(e)
+    if (animation === 'random') await update($, playing, () => pick(Math.random))
+    if (!routingEnabled) return next(e)
 
     const chosen = await choose($, models, classifier, endpoints, e.text)
     await update($, route, () => chosen)
@@ -479,6 +492,13 @@ export const register: Register = (on, options) => {
     const { backend: used, model, ...rest } = outcome.payload
     return { text: `${used}${model === undefined ? '' : ` (${model})`}\n${JSON.stringify(rest, null, 2)}` }
   })
+
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    if (animation === 'off') return next(e)
+    const shown = animation === 'random' ? ((await read($, playing)) ?? 'cat') : animation
+    const message = `${lane(shown, await $.clock.now())} ${e.props.message ?? e.props.word}`
+    return next({ ...e, props: { ...e.props, message } })
+  }).catch(($, e, next) => next(e))
 
   // 判断を Jev / Laya に任せ、答えを JSON でモデルに返す。失敗はエラー結果としてモデルに伝える。
   // 送り先は設定で有効にしたものだけ。モデルが Jev（外部）へ切り替えることはできない
