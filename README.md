@@ -37,6 +37,7 @@ Enable model switching: on
 Enable decision making (Jev / Laya): on
 classifier: haiku
 decide tool: off
+animation: off
 ```
 
 ## 使い方
@@ -52,12 +53,12 @@ router: claude-sonnet-5-5 (standard, auto)
 
 | コマンド               | 動作                                                         |
 | ------------------ | ---------------------------------------------------------- |
-| `/router`          | 現在のモード、直近のルート、モデルと effort の設定を表示                           |
+| `/router`          | 現在のモード、直近のルート、モデルの設定を表示                           |
 | `/router auto`     | 自動で振り分ける（既定）                                               |
 | `/router off`      | 振り分けをやめ、`/model` で選んだモデルをそのまま使う                            |
-| `/router simple`   | simple のモデルと effort に固定する                                  |
-| `/router standard` | standard のモデルと effort に固定する                                |
-| `/router complex`  | complex のモデルと effort に固定する                                 |
+| `/router simple`   | simple のモデルに固定する                                  |
+| `/router standard` | standard のモデルに固定する                                |
+| `/router complex`  | complex のモデルに固定する                                 |
 | `/decide ...`      | Jev / Laya に判断を直接任せる（[`/decide` で自分で任せる](#decide-で自分で任せる)） |
 
 
@@ -124,7 +125,26 @@ LAYA_HOST=127.0.0.1 laya-serve    # 既定で :8000 に立つ
 
 ### ティア分類にも使う
 
-`classifier` を `laya` か `jev` にすると、プロンプトのティア分類（simple / standard / complex）を haiku ではなく決定モデルに任せます。ローカルの Laya なら 1 回数十ミリ秒で済み、分類のための API 呼び出しがなくなります。失敗したときは haiku で分類し直します。
+`classifier` を `laya` か `jev` にすると、プロンプトのティア分類（simple / standard / complex）を haiku ではなく決定モデルに任せます。ローカルの Laya なら 1 回数十ミリ秒で済み、分類のための API 呼び出しがなくなります。失敗したときは haiku で分類し直します。モデルを切り替えるターンの effort の判定にも、同じ分類器を使います。
+
+## スピナーのアニメーション
+
+ジョーク機能です。Claude が動いている間の行に、動くアスキーアートを出します。既定ではオフです。元のスピナーの語（`Sauteing` など）の前に付きます。
+
+```
+|   =^.^=      | Sauteing… (12s, 300 tokens)
+```
+
+- `/config` で `animationStyle` を選びます: `cat`（猫）/ `rocket`（ロケット）/ `shades`（顔に `⌐■-■` のサングラスが飛んできて、かけて決める。その場で動かない）/ `loading`（進捗バーが 10% から 99% まで進み、10% まで戻る。0% には戻さない）/ `think`（`(-_-) .oO(?)` と考え込み、`(!)` と閃いて `(^o^)/` で解決する。その場で動かない）/ `sleep`（`(-_-) zZZ` と寝息をたて、`(u_u)` でうなされる）/ `wave`（キラキラを散らしながら顔が左右に揺れる。パリピ）/ `pacman`（パックマン `C` がドットを食べながら右へ進み、おばけ `M` が後ろから追う）/ `random`（依頼ごとにこの 8 種類から選び直す）/ `off`。
+- 道の幅は固定で、後ろの文は動きません。0.25 秒ごとに 1 コマ進み、道を抜けるとまた入ってきます。
+- 再描画が増えるので、端末によってはちらつくことがあります。気になるときは `off` に戻してください。
+- claude を起動せずに、コンソールで動きを確かめられます（Node 22.6 以上）。
+
+```sh
+node scripts/preview-animation.ts                   # すべての種類を同時に動かす（Ctrl+C で終了）
+node scripts/preview-animation.ts cat               # 1 種類だけ（random も指定可）
+node scripts/preview-animation.ts all --frames 40   # 動かさず、40 コマぶんを順に印字する
+```
 
 ## 設定
 
@@ -140,6 +160,7 @@ LAYA_HOST=127.0.0.1 laya-serve    # 既定で :8000 に立つ
 | `decisionEnabled` | `true`                    | Jev / Laya の利用（ティア分類と `decide` ツール）を有効にする。`false` では分類は haiku、`decide` は出さない（モデル切り替えには影響しない） |
 | `classifier`      | `haiku`                   | ティア分類に使うモデル（`haiku` / `laya` / `jev`）                                                        |
 | `decideBackend`   | `off`                     | `decide` ツールの送り先（`off` / `laya` / `jev`）。`off` ではツールを出さない                                    |
+| `animationStyle`  | `off`                     | スピナー行のアニメーション（`off` / `random` / `cat` / `rocket` / `shades` / `loading` / `think` / `sleep` / `wave` / `pacman`）                                        |
 | `layaUrl`         | `http://localhost:8000`   | laya-serve の URL                                                                             |
 | `layaApiKey`      | なし                        | laya-serve を `LAYA_API_KEY` 付きで動かしているときのキー                                                   |
 | `jevUrl`          | `https://api.typesafe.ai` | Jev の API の URL                                                                              |
@@ -167,11 +188,14 @@ settings ファイルに書く場合は、`pluginConfigs` にプラグイン名�
 
 - エイリアス（`haiku` / `sonnet` / `opus`）は、`claude-haiku-5-5` などのフル ID に変換して送ります。フル ID を直接書くこともできます。
 - Bedrock などでモデル名に `us.anthropic.` のような接頭辞が付いている場合は、それを引き継ぎます。
-- effort は各モデルの既定に任せ、明らかに合わないときだけ変更します。
+- effort は各モデルの既定に任せ、変えるのは次の 2 つのときだけです。固定モード（`/router simple` など）では触れません。
+  - モデルを切り替えるターンで、既定のままでは明らかに合わないと判定されたとき、既定から 1 段階下げるか上げます。
+  - 下げを見送って重いモデルに留まるとき、ティアに合わせて既定より下がる場合だけ下げます（simple は `low`、standard は `medium`）。
+- effort を変えたターンは、ステータスに `effort low` のように出ます。effort に対応しないモデル（Haiku 4.5 / Sonnet 4.5 以前）には送りません。
 
 ## 注意
 
-- **分類の費用と待ち時間**：プロンプトごとに `classifier` で選んだ分類器を 1 回呼びます（既定は haiku）。haiku ではそのぶん毎回少し待ち時間と費用が増えます。
+- **分類の費用と待ち時間**：プロンプトごとに `classifier` で選んだ分類器を 1 回呼びます（既定は haiku）。haiku ではそのぶん毎回少し待ち時間と費用が増えます。モデルを切り替えるターンは、effort の判定のためにもう 1 回呼びます。
 - **キャッシュ**：モデルを切り替えたターンは、会話全体のキャッシュを書き直します。長い会話で軽い方へ下げると節約額より書き直しの費用が大きくなるため、下げは大きく離れたときか小さい会話のときだけにしています。
 - **`/model` との関係**：`auto` と固定モードでは、`/model` や `--model` で選んだモデルをこの mod が上書きします。自分で選んだモデルを使いたいときは `/router off` にしてください。
 
@@ -191,10 +215,13 @@ claude --plugin-dir .      # このフォルダを読み込んで起動
 | `.claude-plugin/plugin.json`      | mod の定義と設定項目                         |
 | `.claude-plugin/marketplace.json` | `/plugin install` で入れるためのマーケットプレイス定義 |
 | `hooks/hooks.json`                | フックのモジュールの指定                         |
-| `hooks/router.ts`                 | 本体                                   |
+| `hooks/main.ts`                   | 本体（ルーティング・decide・アニメーションのフック）                                  |
 | `hooks/systemone.ts`              | Jev / Laya の質問と応答の型、入力の検証            |
+| `hooks/animation.ts`              | スピナーのアニメーションのコマ（フックは `main.ts`） |
+| `scripts/preview-animation.ts`    | アニメーションをコンソールで確かめるスクリプト           |
 | `types/index.d.ts`                | mod が持つ状態の型                          |
 | `tests/router.test.ts`            | ルーティングのテスト                           |
 | `tests/decide.test.ts`            | Jev / Laya 連携のテスト                    |
+| `tests/animation.test.ts`         | アニメーションのテスト                          |
 
 

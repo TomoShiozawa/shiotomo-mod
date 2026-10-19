@@ -1,6 +1,6 @@
 {
   "name": "shiotomo-mod",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": {
     "name": "shiotomo"
   },
@@ -50,6 +50,24 @@
       "description": "Claude が分類・採点・yes/no の判断を任せる decide ツールの送り先。off（既定）ではツールを出さない",
       "default": "off",
       "options": ["laya", "jev", "off"]
+    },
+    "animationStyle": {
+      "type": "string",
+      "title": "Spinner animation",
+      "description": "思考中の行に動くアスキーアートを出す（ジョーク機能）。cat（猫）/ rocket（ロケット）/ shades（サングラス）/ loading（10〜99% を行ったり来たり）/ think（考え込んで閃く）/ sleep（寝息の Z）/ wave（キラキラしながら横に揺れるパリピ）/ pacman（ドットを食べ、おばけに追われる）/ random（依頼ごとにランダム）/ off",
+      "default": "off",
+      "options": [
+        "off",
+        "random",
+        "cat",
+        "rocket",
+        "shades",
+        "loading",
+        "think",
+        "sleep",
+        "wave",
+        "pacman"
+      ]
     },
     "layaUrl": {
       "type": "string",
